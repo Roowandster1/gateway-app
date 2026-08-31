@@ -11,6 +11,10 @@
   --warn:#AF5227; --warn-bg:#F7E9E1;
   --bad:#A32C2C; --bad-bg:#F7E6E4;
   --shadow:rgba(20,26,24,.10);
+  /* Cost-split segments. Validated with the dataviz palette checker against
+     this surface: lightness band, chroma floor, CVD separation, normal-vision
+     floor and contrast all pass. Do not nudge these by eye. */
+  --seg-eaten:#2A5FA8; --seg-cupboard:#1C7A57; --seg-wasted:#B0512A;
   --sans:"Archivo",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
 }
@@ -23,6 +27,8 @@
     --warn:#E08A57; --warn-bg:#2C1D14;
     --bad:#E5726F; --bad-bg:#2E1717;
     --shadow:rgba(0,0,0,.5);
+    /* Re-stepped for the dark surface and re-validated, not flipped. */
+    --seg-eaten:#5590D6; --seg-cupboard:#35A87C; --seg-wasted:#D0733F;
   }
 }
 :root[data-theme="dark"]{
@@ -33,6 +39,7 @@
   --warn:#E08A57; --warn-bg:#2C1D14;
   --bad:#E5726F; --bad-bg:#2E1717;
   --shadow:rgba(0,0,0,.5);
+  --seg-eaten:#5590D6; --seg-cupboard:#35A87C; --seg-wasted:#D0733F;
 }
 *{box-sizing:border-box}
 body{background:var(--ground);color:var(--ink);font-family:var(--sans);
@@ -130,6 +137,28 @@ input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:6
 .tot.carry .v{color:var(--good)}
 .tot.waste .v{color:var(--warn)}
 
+/* ---- cost split ---- */
+.split{margin-bottom:18px}
+.split .hero{display:flex;align-items:baseline;gap:9px;margin-bottom:11px}
+.split .hero .n{font-family:var(--mono);font-size:31px;font-weight:600;
+  font-variant-numeric:tabular-nums;letter-spacing:-.03em;line-height:1}
+.split .hero .l{font-size:12px;color:var(--muted)}
+/* NOT .bar — that class is already the phone's top bar, whose
+   align-items:center collapses these segments to zero height. */
+.costbar{display:flex;align-items:stretch;height:15px;border-radius:4px;gap:2px;
+  background:var(--surface)}
+.costbar span{display:block;border-radius:2px;min-width:3px;height:100%}
+.costbar .s-eaten{background:var(--seg-eaten)}
+.costbar .s-cupboard{background:var(--seg-cupboard)}
+.costbar .s-wasted{background:var(--seg-wasted)}
+.key{display:flex;flex-wrap:wrap;gap:5px 16px;margin-top:11px}
+.key div{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+.key i{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+.key b{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--ink);
+  font-variant-numeric:tabular-nums}
+.key .pc{font-family:var(--mono);font-size:10.5px;color:var(--muted)}
+.split .caption{font-size:11.5px;color:var(--muted);margin:11px 0 0;line-height:1.5}
+
 .tabs{display:flex;gap:4px;background:var(--surface-2);padding:3px;border-radius:9px;margin-bottom:16px}
 .tab{flex:1;appearance:none;border:0;background:none;font-family:var(--sans);font-size:13px;
   font-weight:600;color:var(--muted);padding:8px;border-radius:7px;cursor:pointer}
@@ -167,6 +196,11 @@ input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:6
 .slot{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;
   color:var(--muted);border:1px solid var(--line);border-radius:3px;padding:1px 4px;margin-left:6px}
 
+.slot-head{font-family:var(--mono);font-size:10px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--muted);padding:15px 0 5px;
+  display:flex;justify-content:space-between;align-items:baseline}
+.slot-head:first-child{padding-top:2px}
+.slot-head span{font-size:10px}
 .aisle{font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;
   color:var(--muted);padding:14px 0 6px;border-bottom:1px solid var(--line);position:sticky;top:0;
   background:var(--surface)}
@@ -286,15 +320,12 @@ input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:6
       <!-- 5. result -->
       <section class="screen" id="s-plan" hidden>
         <div id="planOk" hidden>
-          <div class="totals">
-            <div class="tot"><span class="k">Spend at the till</span>
-              <span class="v" id="tSpend"></span></div>
-            <div class="tot eaten"><span class="k">Food you'll eat</span>
-              <span class="v" id="tEaten"></span></div>
-            <div class="tot carry"><span class="k">Stays in the cupboard</span>
-              <span class="v" id="tCarry"></span></div>
-            <div class="tot waste"><span class="k">Wasted</span>
-              <span class="v" id="tWaste"></span></div>
+          <div class="split">
+            <div class="hero"><span class="n" id="tSpend"></span>
+              <span class="l" id="tSpendLabel"></span></div>
+            <div class="costbar" id="costBar" role="img" aria-label=""></div>
+            <div class="key" id="costKey"></div>
+            <p class="caption" id="splitCaption"></p>
           </div>
           <div class="tabs" role="tablist">
             <button class="tab" id="tabMeals" role="tab" aria-selected="true">The food</button>
@@ -465,20 +496,27 @@ input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:6
     $("planNo").hidden = ok;
     if (!ok){ renderInfeasible(p); return; }
 
-    $("tSpend").textContent = money(p.spend);
-    $("tEaten").textContent = money(p.consumed_value);
-    $("tCarry").textContent = money(p.carry_over_value);
-    $("tWaste").textContent = money(p.wasted_value);
+    renderSplit(p);
 
     var order = {breakfast:0, main:1, snack:2};
     var meals = p.meals.slice().sort(function(a,b){
       return (order[a.slot]-order[b.slot]) || (b.servings-a.servings); });
+    var SLOT_TITLE = {breakfast:"Breakfast", main:"Main meals", snack:"Snacks"};
+    var seen = {};
     $("paneMeals").innerHTML = meals.map(function(m){
+      var head = "";
+      if (!seen[m.slot]) {
+        seen[m.slot] = true;
+        var n = meals.filter(function(o){ return o.slot === m.slot; })
+                     .reduce(function(a, o){ return a + o.servings; }, 0);
+        head = '<div class="slot-head">' + SLOT_TITLE[m.slot]
+             + '<span>' + plural(n, "serving") + '</span></div>';
+      }
       var how = (DATA.methods || {})[m.recipe];
-      return '<details class="meal"><summary>'
+      return head + '<details class="meal"><summary>'
         + '<span class="mult">'+m.servings+'&times;</span>'
         + '<span class="nm">'+esc(m.name)
-        + (m.slot!=="main" ? '<span class="slot">'+esc(m.slot)+'</span>' : '')+'</span>'
+        + '</span>'
         + '<span class="mac">'+Math.round(m.protein_per_serving)+'g · '
         + Math.round(m.kcal_per_serving)+' kcal<br>'+m.minutes+' min</span>'
         + '<span class="chev">&#9654;</span></summary>'
@@ -523,6 +561,44 @@ input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:6
       + '<p class="note">Prices are seed estimates, <b>unverified</b>. Correcting one in the '
       + 'aisle writes a new price and re-solves.</p>';
     $("paneShop").innerHTML = html;
+  }
+
+  function renderSplit(p){
+    var period = periodWord();
+    $("tSpend").textContent = money(p.spend);
+    $("tSpendLabel").textContent = "at the till, for " +
+      (state.days === 1 ? "one day" : state.days === 7 ? "the week"
+        : state.days === 14 ? "the fortnight" : state.days + " days");
+
+    // One bar, three parts of one total. Segments carry a 2px surface gap and
+    // every part is named in the key below, so identity never rests on colour.
+    var parts = [
+      {seg:"eaten",    key:"Food you'll eat",       v:p.consumed_value},
+      {seg:"cupboard", key:"Stays in the cupboard", v:p.carry_over_value},
+      {seg:"wasted",   key:"Wasted",                v:p.wasted_value}
+    ].filter(function(x){ return x.v > 0.005; });
+
+    var total = p.spend || 1;
+    $("costBar").innerHTML = parts.map(function(x){
+      return '<span class="s-'+x.seg+'" style="flex:'+(x.v/total)+' 1 0" title="'
+        + esc(x.key)+' '+money(x.v)+'"></span>';
+    }).join("");
+    $("costBar").setAttribute("aria-label",
+      "Of " + money(p.spend) + " spent, " + parts.map(function(x){
+        return money(x.v) + " " + x.key.toLowerCase(); }).join(", ") + ".");
+
+    $("costKey").innerHTML = parts.map(function(x){
+      return '<div><i style="background:var(--seg-'+x.seg+')"></i>'
+        + esc(x.key)+' <b>'+money(x.v)+'</b>'
+        + '<span class="pc">'+Math.round(x.v/total*100)+'%</span></div>';
+    }).join("");
+
+    var pc = Math.round(p.carry_over_value / total * 100);
+    $("splitCaption").textContent = pc >= 40
+      ? "Most of this shop is stock you keep. Rice, oil and tins do not run out "
+        + "with the " + period + ", so the next shop buys far less."
+      : "Cupboard stock carries into the next " + period + " and makes it cheaper. "
+        + "Only the perishable leftover is really wasted.";
   }
 
   function fmtQty(q, unit){

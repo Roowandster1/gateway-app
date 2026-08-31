@@ -540,3 +540,52 @@ or the numbers will drift again the next time a recipe is added.
   same dish across two or three models, then ~24 for the set on `recraft_v4_1`.
 - **The receipt test.** Still the gate on P2, still untouched.
 - Still open: `WASTE_PENALTY` 1.5 -> 15, and the default objective.
+
+---
+
+## Session 8 — design pass, no credits spent
+
+The owner's first complaint was that the demo is "basic text". This is the half
+that costs nothing; generated food photography is still waiting on credits.
+
+**The money split is now a chart, because it is the product's whole argument.**
+Three numbers in a row did not say what they meant. One stacked bar — spend, cut
+into food you eat / stays in the cupboard / wasted — makes the thing that
+confused the owner obvious at a glance: a one-day plan is £16.70 at the till and
+**79% of it is stock you still own tomorrow**.
+
+Segment colours were run through the dataviz palette validator rather than
+picked by eye, against both surfaces:
+
+```
+light  #2A5FA8 #1C7A57 #B0512A   lightness, chroma, normal-vision floor, contrast: PASS
+dark   #5590D6 #35A87C #D0733F   all checks PASS (re-stepped for the dark surface,
+                                 not an inverted copy)
+```
+
+The first two attempts failed outright — a neutral grey "eaten" tripped the
+chroma floor and sat too close to the green for deutan vision. Identity never
+rests on colour alone: every segment is named with its value and share in the
+key, segments carry a 2px surface gap, and the bar has an `aria-label` spelling
+out the whole split.
+
+Also: meals are grouped under Breakfast / Main meals / Snacks with serving
+counts, instead of one flat list.
+
+**One bug worth recording.** The cost bar first rendered as a blank gap. The
+class name `.bar` was already the phone's top bar, whose `align-items:center`
+collapsed the segments to zero height — a pure cascade collision, invisible in
+the source and obvious in the DOM. Renamed to `.costbar`, with a comment saying
+why. Found by inspecting computed styles, not by reading the CSS.
+
+---
+
+## Next
+
+- **Food photography.** Recipe set has settled at 24. ~3 credits for a style
+  test across two or three models, ~24 for the set on `recraft_v4_1`; 50 covers
+  redos. Owner's Higgs balance is 0.
+- **The receipt test.** Still the gate on P2, still untouched. 28 prices, none
+  yet checked against a till.
+- **KICKOFF §3 needs updating** — its acceptance case now solves (Session 7).
+- Still open: `WASTE_PENALTY` 1.5 -> 15, and the default objective.
