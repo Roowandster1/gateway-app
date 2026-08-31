@@ -39,6 +39,15 @@ Regenerate seed SQL after editing the catalogue or the classification:
 python3 db/seed/generate.py
 ```
 
+Tests and the 4-week acceptance simulation (both need a seeded database):
+
+```bash
+.venv/bin/pip install -r services/solver/requirements-dev.txt
+cd services/solver
+../../.venv/bin/python -m pytest tests -q
+../../.venv/bin/python scripts/simulate_weeks.py
+```
+
 ## Reading order
 
 `CLAUDE.md` (rules and domain) → `SPEC.md` (schema, solver contract, phases) →

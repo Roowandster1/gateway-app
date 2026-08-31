@@ -130,3 +130,111 @@ simulation, with the corrections in open decisions 2 and 3. Diff against
 `baselines/prototype-baseline.txt` and explain any movement in cost or macros.
 
 Resolve open decision 1 first — it changes what the objective optimises.
+
+_(Session 2 follows below.)_
+
+---
+
+## Session 2 — the carry-over model
+
+Decision on open item 1: **shelf life**, confirmed by the owner.
+`CARRY_BY_SHELF_LIFE = true`.
+
+**Built**
+
+- `app/domain.py` — `Item` / `Recipe`, no DB or framework, so the model is
+  testable without either. `Item.carries()` is the shelf-life rule.
+- `app/catalogue.py` — loads items priced at the requested store. An unpriced
+  item is excluded and any recipe needing it is dropped and *reported*
+  (CLAUDE.md rule 3).
+- `app/model.py` — the model, ported from `prototype/solver.py`, plus pantry
+  subtraction, the leftover split, and the SPEC §3(d) objective.
+- `scripts/simulate_weeks.py` — the 4-week acceptance test.
+- `tests/` — 9 tests, including hand-checked arithmetic.
+- `/solve` is live.
+
+**The 4-week simulation** (Aldi, £30, 100g protein/day, `protein` objective)
+
+```
+        till spend   carried   wasted  cupboard  protein/d   kcal/d
+wk 1        £29.67    £10.10    £2.04    £10.10       108g     2028
+wk 2        £21.45     £4.11    £3.35     £9.58       110g     2023
+wk 3        £20.36     £4.22    £3.35     £7.90       110g     2011
+wk 4        £25.25     £8.36    £3.35    £11.18       110g     2023
+
+4 weeks: £96.73. Without a cupboard: £118.68. Saved £21.95.
+```
+
+Week 1 reproduces the prototype exactly — £29.67, same meals — so the port did
+not move the model. Week 2 draws 16 items free from the cupboard and costs
+28% less at *higher* protein.
+
+Week 4 rising to £25.25 is not a regression. It is the sawtooth of pack buying:
+a 1kg bag of rice lasts about two weeks, then it is rebought. Cost oscillates
+around a floor rather than falling monotonically, which is why the test asserts
+a plateau rather than a monotonic decline.
+
+**Bug found and fixed: `WASTE_PENALTY` did nothing.**
+
+The leftover variable was bounded from above only. For penalised items the
+objective drives it to zero, so the model optimised as though waste were free —
+while `_extract` computed the reported waste separately from actual quantities
+and printed a correct-looking £3.35. Reporting was right; the optimisation was
+blind. Only a sensitivity sweep catches that class of bug, since every output
+looks plausible.
+
+Fixed by pinning `leftover == bought - used` for non-carrying items. Carrying
+items are credited, so the objective pushes their leftover up to the true
+minimum on its own and upper bounds remain correct — the two cases are genuinely
+asymmetric. `test_waste_penalty_actually_changes_the_plan` is the regression
+test.
+
+---
+
+## Open decisions — need a call before Session 3
+
+### 5. `WASTE_PENALTY = 1.5` is still inert under the `protein` objective
+
+With the bug fixed the knob works, but not at the spec's suggested value:
+
+```
+objective   WASTE_PENALTY    spend   wasted  protein/d
+protein               1.5   £21.45    £3.35       110g
+protein              15.0   £18.75    £1.96       109g
+protein             100.0   £16.92    £0.53       106g
+```
+
+The cause is a units mismatch, not the penalty. The objective is
+`protein - 0.5 * cost`, with protein in grams and cost in pounds, so one gram of
+protein is implicitly worth £2. Against that, £1 of waste is worth half a gram
+of protein and never changes a decision. SPEC's 1.5 was presumably calibrated
+against a `cheapest`-like scale.
+
+**Recommendation: `WASTE_PENALTY = 15` for the `protein` objective.** It is
+strictly better on the two numbers that matter — £2.70 a week cheaper and £1.39
+less waste — for one gram of protein a day. Default left at the spec's 1.5
+pending your call, since changing it silently would be overriding your spec.
+
+### 6. The week-on-week saving depends on protein saturating
+
+Under `protein` the solver converts freed budget into more protein rather than
+handing money back, until protein saturates around 110g/day — then it stops and
+the saving appears. Give it a partial cupboard and it *spends more*, not less
+(£29.87 vs £29.67), because it can now afford to reach the ceiling.
+
+That is consistent with CLAUDE.md's "given £40 it only spent £32.96", and it is
+defensible. But it means "week 2 is cheaper" is a consequence of satiation, not
+a direct result of the pantry. Under `cheapest` the mechanic is far starker:
+**£23.54 → £11.13**. Worth deciding which objective the product ships as the
+default before P2 builds screens around it.
+
+---
+
+## Notes
+
+- Cook time is counted per **cook**, not per serving: one pan of chilli for four
+  is one cook. SPEC §7 asks for household scaling to be explicit; with
+  `household_size = 1` this reduces to the prototype exactly.
+- `max_repeat` counts meals, not servings, for the same reason.
+- Tesco at £25 returns `infeasible`, matching KICKOFF §3. `min_feasible_budget`
+  is still null — that is Session 3, via the elastic model in open decision 4.

@@ -57,6 +57,7 @@ class BasketLine(BaseModel):
     qty_used: float
     qty_carry_over: float
     qty_wasted: float
+    carries: bool
 
 
 class SolveResponse(BaseModel):
@@ -67,10 +68,12 @@ class SolveResponse(BaseModel):
     spend: float
     carry_over_value: float
     wasted_value: float
+    cupboard_value: float
     protein_per_day: float
     kcal_per_day: float
     meals: list[PlanMeal]
     basket: list[BasketLine]
+    closing_pantry: dict[str, float]
 
 
 class InfeasibleResponse(BaseModel):
