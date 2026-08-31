@@ -53,6 +53,9 @@ class Recipe:
     minutes: int
     meal_slot: str               # 'breakfast' | 'main' | 'snack'
     ingredients: dict[str, float] = field(default_factory=dict)
+    # Decorative dish photography. Never used in selection, pricing or
+    # quantities; a recipe without one simply renders without a picture.
+    image_url: str | None = None
 
     def macros(self, items: dict[str, Item]) -> tuple[float, float]:
         kcal = protein = 0.0

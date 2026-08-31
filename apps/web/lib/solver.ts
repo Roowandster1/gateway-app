@@ -28,6 +28,8 @@ export interface PlanMeal {
   minutes: number;
   kcal_per_serving: number;
   protein_per_serving: number;
+  /** Decorative dish photography. Absent is a normal state, not an error. */
+  image_url: string | null;
 }
 
 export interface BasketLine {

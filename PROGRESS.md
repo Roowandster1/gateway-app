@@ -809,3 +809,40 @@ see them to judge quality myself. Consequences:
 
 Held the remaining ~30 credits rather than generating 24 images in a style
 nobody has approved and I cannot inspect.
+
+---
+
+## Session 12 — photography
+
+24 dish photos generated with **Recraft V4.1** (owner's pick from a three-model
+style test), from a single brief: overhead, plain white crockery, pale wooden
+worktop, natural window light, no garnish or styling. The point was that 24
+dishes read as one set rather than 24 stock photos, and that they look like
+Tuesday food rather than a magazine — a glossy photo would sit badly against a
+product whose pitch is that the numbers are honest.
+
+Migration 010 adds `recipe.image_url`; the solver returns it on each meal; the
+app renders a 56px thumbnail per row. Images are **decoration** and nothing
+more: CLAUDE.md rule 1 allows a model to make copy and imagery, and none of this
+touches selection, pricing or quantities. A recipe without a photo renders
+without one.
+
+Credits: 80 → 46.60. About 3.4 on the style test, 30 on the set.
+
+**Two things to know.**
+
+1. **The images are CDN URLs, not files in this repo.** This sandbox cannot
+   reach the Higgsfield CDN — CONNECT returns 403 — so they could not be
+   downloaded and committed. If that account or CDN path rotates, every photo
+   404s. The fix is to self-host them under `apps/web/public`, which needs
+   someone who can actually fetch the files. Until then this is a real fragility,
+   not a tidy-up.
+2. **The artifact demo still has no photos and cannot have any**, because its
+   CSP blocks external images and the files cannot be embedded from here. Photos
+   are an `apps/web` feature only.
+
+Verified: 24 of 24 recipes carry an image, the solver returns them, 10 `<img>`
+tags render with correct URLs, and the layout reserves the space so it degrades
+to neutral placeholders when the CDN is unreachable — which is exactly what it
+does from this sandbox. **I have never seen these images.** Whether they are any
+good is the owner's call.

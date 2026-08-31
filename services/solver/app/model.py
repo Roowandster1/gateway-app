@@ -341,6 +341,7 @@ def _extract(items, recipes, params, carries, pantry, x, y, prob) -> Plan:
         kcal, protein = recipes[s].macros(items)
         meals.append(dict(recipe=s, name=recipes[s].name, servings=n,
                           slot=recipes[s].meal_slot, minutes=recipes[s].minutes,
+                          image_url=recipes[s].image_url,
                           kcal_per_serving=round(kcal, 1),
                           protein_per_serving=round(protein, 1)))
 

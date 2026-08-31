@@ -38,6 +38,7 @@ class PlanMeal(BaseModel):
     minutes: int
     kcal_per_serving: float
     protein_per_serving: float
+    image_url: str | None = None
 
 
 class BasketLine(BaseModel):

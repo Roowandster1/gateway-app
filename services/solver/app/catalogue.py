@@ -21,7 +21,8 @@ WHERE s.slug = %s
 """
 
 RECIPE_SQL = """
-SELECT r.slug, r.name, r.minutes, r.meal_slot::text, i.slug, ri.qty_per_serving
+SELECT r.slug, r.name, r.minutes, r.meal_slot::text, r.image_url,
+       i.slug, ri.qty_per_serving
 FROM recipe r
 JOIN recipe_ingredient ri ON ri.recipe_id = r.id
 JOIN item i               ON i.id = ri.item_id
@@ -46,9 +47,9 @@ def load(store: str, dsn: str | None = None
             raise ValueError(f"no priced items for store {store!r}")
 
         raw: dict[str, dict] = {}
-        for slug, name, minutes, slot, item_slug, qty in conn.execute(RECIPE_SQL):
+        for slug, name, minutes, slot, image, item_slug, qty in conn.execute(RECIPE_SQL):
             r = raw.setdefault(slug, dict(name=name, minutes=minutes,
-                                          slot=slot, ing={}))
+                                          slot=slot, image=image, ing={}))
             r["ing"][item_slug] = float(qty)
 
     recipes, dropped = {}, []
@@ -58,5 +59,6 @@ def load(store: str, dsn: str | None = None
             dropped.append(f"{slug} (unpriced: {', '.join(sorted(missing))})")
             continue
         recipes[slug] = Recipe(slug=slug, name=r["name"], minutes=r["minutes"],
-                               meal_slot=r["slot"], ingredients=r["ing"])
+                               meal_slot=r["slot"], ingredients=r["ing"],
+                               image_url=r["image"])
     return items, recipes, dropped

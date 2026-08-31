@@ -565,8 +565,19 @@ function PlanScreen({
             return (
               <div key={m.recipe}>
                 {head}
-                <div className="flex gap-3 items-baseline py-2.5 border-b border-line last:border-0">
-                  <span className="font-mono text-[13px] font-semibold bg-accent text-accent-ink rounded px-1.5 py-0.5 shrink-0">
+                <div className="flex gap-3 items-center py-2.5 border-b border-line last:border-0">
+                  {m.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={m.image_url}
+                      alt=""
+                      loading="lazy"
+                      className="w-14 h-14 rounded-lg object-cover bg-surface-2 shrink-0"
+                    />
+                  ) : (
+                    <span className="w-14 h-14 rounded-lg bg-surface-2 shrink-0" />
+                  )}
+                  <span className="font-mono text-[13px] font-semibold bg-accent text-accent-ink rounded px-1.5 py-0.5 shrink-0 self-start">
                     {m.servings}×
                   </span>
                   <span className="flex-1 text-sm font-medium tracking-tight">{m.name}</span>
