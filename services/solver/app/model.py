@@ -78,67 +78,94 @@ class Infeasible(Exception):
         super().__init__(f"no feasible plan (binding: {binding})")
 
 
-def solve_plan(items: dict[str, Item], recipes: dict[str, Recipe],
-               params: SolveParams) -> Plan:
-    p = params
-    horizon = p.days
-    pantry = dict(p.pantry or {})
+class Infeasible(Exception):
+    def __init__(self, binding: str = "unknown", suggestion: str = "",
+                 min_feasible_budget: float | None = None):
+        self.binding = binding
+        self.suggestion = suggestion
+        self.min_feasible_budget = min_feasible_budget
+        super().__init__(suggestion or f"no feasible plan (binding: {binding})")
 
+
+@dataclass
+class _Built:
+    """One assembled model, shared by the plan solve, the diagnosis and the
+    cheapest-budget search so all three see exactly the same constraints."""
+    prob: pulp.LpProblem
+    items: dict
+    recipes: dict
+    params: "SolveParams"
+    carries: dict
+    pantry: dict
+    x: dict
+    y: dict
+    leftover: dict
+    z: dict
+    protein: object
+    kcal: object
+    pack_cost: object
+    net_cost: object
+    slacks: dict          # constraint name -> (slack var, scale for normalising)
+
+
+def _prepare(items, recipes, params):
+    p = params
     items = {s: it for s, it in items.items() if s not in p.exclude_items}
     recipes = {
         s: r for s, r in recipes.items()
         if s not in p.exclude_recipes and set(r.ingredients) <= set(items)
     }
     if not recipes:
-        raise Infeasible("no recipes available after exclusions")
+        raise Infeasible("catalogue", "No recipes are available after exclusions.")
+    carries = {s: it.carries(p.days, config.CARRY_BY_SHELF_LIFE) for s, it in items.items()}
+    pantry = {s: q for s, q in (p.pantry or {}).items()
+              if s in items and carries[s] and q > 0}
+    return items, recipes, carries, pantry
 
-    carries = {s: it.carries(horizon, config.CARRY_BY_SHELF_LIFE) for s, it in items.items()}
 
-    # Stock that cannot survive a week was never really in the cupboard.
-    # Dropping it here keeps `leftover_from_packs` exact for non-carrying items.
-    pantry = {s: q for s, q in pantry.items() if s in items and carries[s] and q > 0}
+def _build(items, recipes, params, *, elastic=False, enforce_budget=True) -> _Built:
+    """
+    Assemble the model.
+
+    elastic=True adds a slack variable to every constraint a user could
+    plausibly relax. Minimising the slacks then names the binding constraint:
+    CBC cannot tell you that directly, because an infeasible integer program has
+    no dual and PuLP exposes no irreducible infeasible subset.
+    """
+    p = params
+    items, recipes, carries, pantry = _prepare(items, recipes, params)
 
     mains = [s for s, r in recipes.items() if r.meal_slot != "breakfast"]
     breakfasts = [s for s, r in recipes.items() if r.meal_slot == "breakfast"]
     main_servings = p.days * (p.meals_per_day - 1) * p.household_size
     breakfast_servings = p.days * p.household_size
 
-    sense = pulp.LpMaximize if p.objective == "protein" else pulp.LpMinimize
-    prob = pulp.LpProblem("meal_plan", sense)
+    prob = pulp.LpProblem("meal_plan", pulp.LpMinimize)
 
-    # --- decision variables -------------------------------------------------
-    # servings cooked of each recipe; max_repeat counts MEALS, so a household of
-    # four eating chilli three times is 12 servings, not 3.
     x = {s: pulp.LpVariable(f"x_{s}", 0, p.max_repeat * p.household_size, cat="Integer")
          for s in recipes}
-    # whole packs bought
     y = {s: pulp.LpVariable(f"y_{s}", 0, config.MAX_PACKS_PER_ITEM, cat="Integer")
          for s in items}
-    # leftover attributable to packs bought THIS week (SPEC §3(b): pantry is free,
-    # so pantry stock is not re-credited every week it sits there)
     leftover = {s: pulp.LpVariable(f"L_{s}", 0, cat="Continuous") for s in items}
 
     used = {s: pulp.lpSum(x[r] * recipes[r].ingredients.get(s, 0) for r in recipes)
             for s in items}
     bought = {s: y[s] * items[s].pack_size for s in items}
 
+    slacks: dict = {}
+
+    def slack(name, scale):
+        """A shortfall/overshoot allowance, normalised so £, grams and minutes
+        are comparable when we minimise them together."""
+        if not elastic:
+            return 0
+        v = pulp.LpVariable(f"slack_{name}", 0, cat="Continuous")
+        slacks[name] = (v, max(scale, 1e-6))
+        return v
+
     # --- the pack constraint: you cannot cook what you did not buy or own ----
     for s in items:
         prob += used[s] <= bought[s] + pantry.get(s, 0), f"pack_{s}"
-
-        # leftover = bought - max(0, used - pantry), linearised.
-        #
-        # The two cases are NOT symmetric, and getting this wrong silently
-        # disables SPEC §3(d):
-        #
-        #   carrying items are CREDITED, so the objective pushes L up and it
-        #   settles at min(bought, bought + pantry - used) on its own. Upper
-        #   bounds are enough.
-        #
-        #   non-carrying items are PENALISED, so the objective pushes L down.
-        #   With upper bounds alone it would sit at zero and the model would
-        #   never see the waste it was about to create. It has to be pinned.
-        #   Pantry holds no non-carrying stock, so bought - used is exact.
         if carries[s]:
             prob += leftover[s] <= bought[s], f"left_bought_{s}"
             prob += leftover[s] <= bought[s] + pantry.get(s, 0) - used[s], f"left_net_{s}"
@@ -146,55 +173,81 @@ def solve_plan(items: dict[str, Item], recipes: dict[str, Recipe],
             prob += leftover[s] == bought[s] - used[s], f"left_waste_{s}"
 
     # --- structure of the week ----------------------------------------------
-    prob += pulp.lpSum(x[s] for s in mains) == main_servings, "main_count"
-    prob += pulp.lpSum(x[s] for s in breakfasts) == breakfast_servings, "breakfast_count"
+    # Elastic as a SHORTFALL only: the failure mode is a recipe set too small to
+    # fill the slots (three breakfasts cannot cover fourteen days), never a
+    # surplus of meals.
+    prob += (pulp.lpSum(x[s] for s in mains)
+             >= main_servings - slack("main_recipe_supply", main_servings)), "main_lo"
+    prob += pulp.lpSum(x[s] for s in mains) <= main_servings, "main_hi"
+    prob += (pulp.lpSum(x[s] for s in breakfasts)
+             >= breakfast_servings
+             - slack("breakfast_recipe_supply", breakfast_servings)), "breakfast_lo"
+    prob += pulp.lpSum(x[s] for s in breakfasts) <= breakfast_servings, "breakfast_hi"
 
     protein = pulp.lpSum(x[s] * recipes[s].macros(items)[1] for s in recipes)
     kcal = pulp.lpSum(x[s] * recipes[s].macros(items)[0] for s in recipes)
     pack_cost = pulp.lpSum(y[s] * items[s].price for s in items)
 
-    prob += pack_cost <= p.budget, "budget"
-    prob += protein >= p.min_protein_per_day * p.days * p.household_size, "min_protein_per_day"
-    prob += kcal >= p.kcal_band[0] * p.days * p.household_size, "min_kcal_per_day"
-    prob += kcal <= p.kcal_band[1] * p.days * p.household_size, "max_kcal_per_day"
+    scale = p.days * p.household_size
+    if enforce_budget:
+        prob += pack_cost <= p.budget + slack("budget", p.budget), "budget"
+    prob += (protein >= p.min_protein_per_day * scale
+             - slack("min_protein_per_day", p.min_protein_per_day * scale)), "min_protein_per_day"
+    prob += (kcal >= p.kcal_band[0] * scale
+             - slack("kcal_band_low", p.kcal_band[0] * scale)), "min_kcal_per_day"
+    prob += (kcal <= p.kcal_band[1] * scale
+             + slack("kcal_band_high", p.kcal_band[1] * scale)), "max_kcal_per_day"
 
-    # Cook time is per COOK, not per serving: one pan of chilli for four is one
-    # cook. SPEC §7 asks for household scaling to be explicit rather than linear.
     cooks = {s: pulp.LpVariable(f"c_{s}", 0, cat="Integer") for s in recipes}
     for s in recipes:
         prob += cooks[s] * p.household_size >= x[s], f"cooks_{s}"
+    cook_budget = p.max_cook_minutes_per_day * p.days
     prob += (pulp.lpSum(cooks[s] * recipes[s].minutes for s in recipes)
-             <= p.max_cook_minutes_per_day * p.days), "max_cook_minutes_per_day"
+             <= cook_budget
+             + slack("max_cook_minutes_per_day", cook_budget)), "max_cook_minutes_per_day"
 
-    # variety floor
     z = {s: pulp.LpVariable(f"z_{s}", cat="Binary") for s in mains}
     for s in mains:
         prob += x[s] <= p.max_repeat * p.household_size * z[s]
         prob += x[s] >= z[s]
-    prob += pulp.lpSum(z.values()) >= p.min_distinct_mains, "min_distinct_mains"
+    prob += (pulp.lpSum(z.values()) >= p.min_distinct_mains
+             - slack("min_distinct_mains", p.min_distinct_mains)), "min_distinct_mains"
 
-    # --- objective (SPEC §3(d)) ---------------------------------------------
     carry_credit = config.CARRY_VALUE * pulp.lpSum(
         leftover[s] * items[s].unit_cost for s in items if carries[s])
     waste_cost = config.WASTE_PENALTY * pulp.lpSum(
         leftover[s] * items[s].unit_cost for s in items if not carries[s])
     net_cost = pack_cost - carry_credit + waste_cost
 
+    return _Built(prob=prob, items=items, recipes=recipes, params=params,
+                  carries=carries, pantry=pantry, x=x, y=y, leftover=leftover, z=z,
+                  protein=protein, kcal=kcal, pack_cost=pack_cost, net_cost=net_cost,
+                  slacks=slacks)
+
+
+def solve_plan(items: dict[str, Item], recipes: dict[str, Recipe],
+               params: SolveParams) -> Plan:
+    b = _build(items, recipes, params)
+    prob, p = b.prob, params
+
+    # --- objective (SPEC §3(d)) ---------------------------------------------
+    # The problem is built as a minimisation, so the protein and variety
+    # objectives are negated rather than flipping the sense.
     if p.objective == "protein":
         # Prototype behaviour, preserved deliberately: CLAUDE.md is explicit that
         # handing money back when the remaining budget buys nothing worth having
         # is a feature, not a bug to be fixed.
-        prob += protein - config.PROTEIN_COST_WEIGHT * net_cost
+        prob += config.PROTEIN_COST_WEIGHT * b.net_cost - b.protein
     elif p.objective == "variety":
-        prob += pulp.lpSum(z.values()) * 100 - net_cost
+        prob += b.net_cost - pulp.lpSum(b.z.values()) * 100
     else:  # "cheapest"
-        prob += net_cost
+        prob += b.net_cost
 
     status = prob.solve(pulp.PULP_CBC_CMD(msg=0, timeLimit=config.SOLVE_TIMEOUT_SECONDS))
     if pulp.LpStatus[status] != "Optimal":
-        raise Infeasible(pulp.LpStatus[status])
+        raise diagnose(items, recipes, params)
 
-    return _extract(items, recipes, params, carries, pantry, x, y, prob)
+    return _extract(b.items, b.recipes, params, b.carries, b.pantry, b.x, b.y, prob)
 
 
 def _extract(items, recipes, params, carries, pantry, x, y, prob) -> Plan:
@@ -266,3 +319,106 @@ def _extract(items, recipes, params, carries, pantry, x, y, prob) -> Plan:
         basket=sorted(basket, key=lambda b: (b.aisle, b.name)),
         closing_pantry=closing,
     )
+
+
+# --- infeasibility as a feature (SPEC §2) ----------------------------------
+#
+# "Your budget doesn't work at this store" is a legitimate and valuable answer,
+# so it gets the same care as a successful plan: name what broke, and say what
+# the week would actually cost.
+
+_PLAIN_ENGLISH = {
+    "budget": "The budget is the binding constraint.",
+    "min_protein_per_day": "The protein floor is what cannot be met.",
+    "kcal_band_low": "The calorie floor cannot be reached.",
+    "kcal_band_high": "The calorie ceiling is too low for these meals.",
+    "max_cook_minutes_per_day": "The cooking-time ceiling is what cannot be met.",
+    "min_distinct_mains": "There are not enough distinct main dishes available.",
+    "main_recipe_supply": "There are not enough main recipes to fill that many days.",
+    "breakfast_recipe_supply": "There are not enough breakfast recipes to fill that many days.",
+}
+
+
+def cheapest_feasible_budget(items, recipes, params) -> float | None:
+    """
+    The cheapest week that still meets every nutrition and structure constraint,
+    found by dropping the budget cap and minimising till spend. Returns None when
+    the plan is impossible for a reason money cannot fix.
+    """
+    b = _build(items, recipes, params, enforce_budget=False)
+    b.prob += b.pack_cost
+    status = b.prob.solve(pulp.PULP_CBC_CMD(msg=0, timeLimit=config.SOLVE_TIMEOUT_SECONDS))
+    if pulp.LpStatus[status] != "Optimal":
+        return None
+    return round(float(pulp.value(b.pack_cost)), 2)
+
+
+def diagnose(items, recipes, params) -> Infeasible:
+    """
+    Identify the binding constraint, then price the cheapest week that would work.
+
+    Every relaxable constraint gets a slack variable, each normalised by its own
+    right-hand side so pounds, grams, calories and minutes are comparable. We
+    then minimise the total normalised slack: the smallest set of relaxations
+    that restores feasibility. Whichever slack comes back largest is what is
+    actually blocking the plan.
+    """
+    b = _build(items, recipes, params, elastic=True)
+    b.prob += pulp.lpSum(v * (1.0 / scale) for v, scale in b.slacks.values())
+    status = b.prob.solve(pulp.PULP_CBC_CMD(msg=0, timeLimit=config.SOLVE_TIMEOUT_SECONDS))
+
+    if pulp.LpStatus[status] != "Optimal":
+        # Even fully relaxed it will not solve — the catalogue itself is the problem.
+        return Infeasible("catalogue",
+                          "No plan is possible from the current catalogue and recipes.")
+
+    violated = sorted(
+        (((v.value() or 0.0) / scale, name, (v.value() or 0.0))
+         for name, (v, scale) in b.slacks.items()),
+        reverse=True,
+    )
+    relative, binding, absolute = violated[0]
+    if relative <= 1e-6:
+        return Infeasible("unknown",
+                          "The solver could not find a plan, but no single "
+                          "constraint appears to be binding.")
+
+    floor = cheapest_feasible_budget(items, recipes, params)
+    p = params
+    store = p.store.title()
+
+    if binding == "budget" and floor is not None:
+        suggestion = (f"£{p.budget:.2f} is not enough at {store}. "
+                      f"£{floor:.2f} is the cheapest feasible week there for these targets.")
+    else:
+        suggestion = _PLAIN_ENGLISH.get(binding, f"{binding} is the binding constraint.")
+        suggestion = f"{suggestion} " + _detail(binding, absolute, params)
+        if floor is not None:
+            suggestion += f" The cheapest week meeting these targets at {store} is £{floor:.2f}."
+        else:
+            suggestion += " No budget makes this work — the targets themselves need to move."
+
+    return Infeasible(binding, suggestion, floor)
+
+
+def _detail(binding, absolute, params) -> str:
+    p = params
+    scale = p.days * p.household_size
+    if binding == "min_protein_per_day":
+        short = absolute / scale
+        return (f"It falls {short:.0f}g/day short of {p.min_protein_per_day:.0f}g — "
+                f"about {p.min_protein_per_day - short:.0f}g/day is reachable.")
+    if binding == "breakfast_recipe_supply":
+        return (f"{absolute:.0f} of the {p.days * p.household_size} breakfast servings "
+                f"cannot be filled without repeating a recipe more than {p.max_repeat} times.")
+    if binding == "main_recipe_supply":
+        return (f"{absolute:.0f} of the {p.days * (p.meals_per_day - 1) * p.household_size} "
+                f"main servings cannot be filled at max_repeat {p.max_repeat}.")
+    if binding == "max_cook_minutes_per_day":
+        return (f"It needs about {absolute / p.days:.0f} more minutes a day than the "
+                f"{p.max_cook_minutes_per_day:.0f} allowed.")
+    if binding == "min_distinct_mains":
+        return f"About {absolute:.0f} fewer distinct mains than requested are achievable."
+    if binding in ("kcal_band_low", "kcal_band_high"):
+        return f"It misses the band by roughly {absolute / scale:.0f} kcal/day."
+    return ""

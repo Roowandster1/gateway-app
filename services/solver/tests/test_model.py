@@ -6,7 +6,7 @@ instruction for when a plan looks too good.
 import pytest
 
 from app import config
-from app.model import SolveParams, solve_plan
+from app.model import Infeasible, SolveParams, solve_plan
 
 
 @pytest.fixture
@@ -114,3 +114,60 @@ def test_tesco_is_dearer_than_aldi(aldi, tesco):
                    SolveParams(store="tesco", budget=30.0, objective="cheapest"))
     assert a.protein_per_day == pytest.approx(t.protein_per_day, abs=5)
     assert t.spend > a.spend, "Aldi should undercut Tesco at equal nutrition"
+
+
+# --- infeasibility as a feature (SPEC §2) ----------------------------------
+
+def test_tesco_at_25_is_infeasible_and_reports_a_floor(tesco):
+    """KICKOFF §3, the case that must work."""
+    items, recipes = tesco
+    with pytest.raises(Infeasible) as exc:
+        solve_plan(items, recipes, SolveParams(store="tesco", budget=25.0))
+    e = exc.value
+    assert e.binding == "budget"
+    assert e.min_feasible_budget is not None
+    assert e.min_feasible_budget > 25.0
+    assert "£" in e.suggestion
+
+
+def test_aldi_at_25_is_feasible(aldi):
+    """KICKOFF §3: the same targets must work at Aldi, around £24.94."""
+    items, recipes = aldi
+    plan = solve_plan(items, recipes, SolveParams(store="aldi", budget=25.0))
+    assert plan.spend == pytest.approx(24.94, abs=0.5)
+
+
+def test_binding_constraint_is_identified_not_guessed(aldi):
+    """Each impossible target must name itself, not just say 'infeasible'."""
+    items, recipes = aldi
+    cases = [
+        (dict(budget=5.0), "budget"),
+        (dict(budget=30.0, min_protein_per_day=250.0), "min_protein_per_day"),
+        (dict(budget=30.0, max_cook_minutes_per_day=8.0), "max_cook_minutes_per_day"),
+        (dict(budget=60.0, days=14), "breakfast_recipe_supply"),
+    ]
+    for kwargs, expected in cases:
+        with pytest.raises(Infeasible) as exc:
+            solve_plan(items, recipes, SolveParams(store="aldi", **kwargs))
+        assert exc.value.binding == expected, f"{kwargs} named {exc.value.binding}"
+        assert exc.value.suggestion, "an infeasible answer must explain itself"
+
+
+def test_floor_is_actually_feasible(tesco):
+    """The reported cheapest week must itself solve — otherwise it is a guess."""
+    items, recipes = tesco
+    with pytest.raises(Infeasible) as exc:
+        solve_plan(items, recipes, SolveParams(store="tesco", budget=25.0))
+    floor = exc.value.min_feasible_budget
+    plan = solve_plan(items, recipes,
+                      SolveParams(store="tesco", budget=floor, objective="cheapest"))
+    assert plan.spend <= floor + 0.01
+
+
+def test_no_budget_number_when_money_is_not_the_problem(aldi):
+    """A protein floor of 250g/day is not a budget problem; do not invent a price."""
+    items, recipes = aldi
+    with pytest.raises(Infeasible) as exc:
+        solve_plan(items, recipes,
+                   SolveParams(store="aldi", budget=30.0, min_protein_per_day=250.0))
+    assert exc.value.min_feasible_budget is None

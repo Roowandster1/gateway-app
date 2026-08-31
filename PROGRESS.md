@@ -238,3 +238,65 @@ default before P2 builds screens around it.
 - `max_repeat` counts meals, not servings, for the same reason.
 - Tesco at £25 returns `infeasible`, matching KICKOFF §3. `min_feasible_budget`
   is still null — that is Session 3, via the elastic model in open decision 4.
+
+---
+
+## Session 3 — infeasibility as a feature
+
+Resolves open decision 4. SPEC §2's structured `INFEASIBLE` is live.
+
+**How the binding constraint is found**
+
+CBC cannot name it: an infeasible integer program has no dual, and PuLP exposes
+no irreducible infeasible subset. So the model is rebuilt *elastic* — every
+constraint a user could plausibly relax gets a slack variable, each normalised
+by its own right-hand side so pounds, grams, calories and minutes are
+comparable. Minimising total normalised slack finds the smallest set of
+relaxations that restores feasibility; the largest slack is what is blocking the
+plan. The cheapest feasible week comes from a second solve with the budget cap
+dropped and till spend minimised.
+
+`model.py` was restructured so the plan solve, the diagnosis and the
+cheapest-budget search share one `_build()`. Per the KICKOFF standing
+instruction the 4-week simulation was run before and after: **byte-identical**.
+
+**KICKOFF §3 acceptance cases**
+
+```
+tesco £25  ->  INFEASIBLE  binding=budget  floor=£28.58
+               "£25.00 is not enough at Tesco. £28.58 is the cheapest
+                feasible week there for these targets."
+aldi  £25  ->  FEASIBLE    £24.94 · 102g protein/day      (spec says ~£24.94)
+```
+
+**Other diagnoses, all returning a named constraint and plain English**
+
+| Request | Binding | Floor |
+|---|---|---|
+| Aldi £5 | `budget` | £23.54 |
+| Aldi, 250g protein/day | `min_protein_per_day` | none — money cannot fix it |
+| Aldi, 8 cook-minutes/day | `max_cook_minutes_per_day` | none |
+| Aldi, 12 distinct mains | `min_distinct_mains` | none |
+| Aldi, 14 days | `breakfast_recipe_supply` | none |
+
+`min_feasible_budget` is null whenever money is not the problem, rather than a
+number that would be a guess. `/solve` returns HTTP 200 for infeasible: the
+client renders it, it is not a failed request.
+
+That last row is the 1–2 week slider from the UI schematic. The 14-day plan
+fails on breakfasts, not money: *"5 of the 14 breakfast servings cannot be
+filled without repeating a recipe more than 3 times."* 5 more tests, 14 total.
+
+---
+
+## Next session
+
+1. **Add 3–4 breakfast recipes** — unblocks the right-hand end of the duration
+   slider. Cheap, and better ingredient overlap improves every plan.
+2. **P2: the four onboarding pages** — shop → duration → budget → goal.
+   The budget slider can now show its floor instead of dead-ending.
+
+Still open for the owner: `WASTE_PENALTY` 1.5 -> 15 (open decision 5), the
+default objective (open decision 6), and whether a 2-week plan is two linked
+weekly shops rather than one basket — one shop cannot cover a fortnight of
+3-day-shelf-life chicken without breaking CLAUDE.md hard rule 4.

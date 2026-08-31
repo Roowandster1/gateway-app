@@ -56,17 +56,13 @@ def solve(req: SolveRequest):
     try:
         plan = solve_plan(items, recipes, params)
     except Infeasible as e:
-        # Session 3 completes this: identify the binding constraint via an
-        # elastic model and re-solve with budget as the objective to report the
-        # cheapest feasible week. SPEC §2 — a headline feature, not an error.
+        # SPEC §2: a headline feature, not an error path. 200, not 4xx — the
+        # client renders this, it does not treat it as a failed request.
         return JSONResponse(status_code=200, content={
             "status": "infeasible",
             "binding": e.binding,
-            "suggestion": (
-                f"No plan at {req.store} for £{req.budget:.2f} hits "
-                f"{req.min_protein_per_day:.0f}g protein a day over {req.days} days."
-            ),
-            "min_feasible_budget": None,
+            "suggestion": e.suggestion,
+            "min_feasible_budget": e.min_feasible_budget,
         })
 
     body = dataclasses.asdict(plan)
