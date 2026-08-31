@@ -1,15 +1,15 @@
 
        till spend   carried   wasted  cupboard  protein/d   kcal/d
 ------------------------------------------------------------------
-wk 1       £29.93     £7.45    £3.72     £7.45       112g     2054
-wk 2       £25.06     £6.29    £2.59    £10.56       113g     2008
-wk 3       £23.21     £5.87    £2.59    £11.82       113g     2008
-wk 4       £18.97     £3.13    £2.59     £8.85       113g     2008
+wk 1       £29.66     £8.48    £0.10     £8.48       143g     2609
+wk 2       £25.22     £4.36    £0.57     £9.95       146g     2593
+wk 3       £23.72     £4.87    £0.57     £9.93       146g     2593
+wk 4       £22.73     £4.64    £0.57     £8.91       146g     2593
 ------------------------------------------------------------------
-  PASS  week 2 cheaper than week 1             £29.93 -> £25.06  (saves £4.87, 16%)
-  FAIL  cost plateaus, does not fall forever   weeks 2-4 spread £6.09 vs week 1->2 drop £4.87
-  PASS  nutrition held constant                protein/day 112-113g
-  PASS  every week within budget               max £29.93 of £30.00
+  PASS  week 2 cheaper than week 1             £29.66 -> £25.22  (saves £4.44, 15%)
+  PASS  cost plateaus, does not fall forever   weeks 2-4 spread £2.49 vs week 1->2 drop £4.44
+  PASS  nutrition held constant                protein/day 143-146g
+  PASS  every week within budget               max £29.66 of £30.00
   PASS  pantry conserved every week            checked per item, per week
 
-  4 weeks at aldi: £97.17. Without a cupboard: £119.72. Saved £22.55.
+  4 weeks at aldi: £101.33. Without a cupboard: £118.64. Saved £17.31.

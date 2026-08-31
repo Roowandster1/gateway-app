@@ -18,7 +18,25 @@ def _i(name, default):
 # Staple leftover is an asset: we recover this fraction of its unit cost.
 CARRY_VALUE = _f("CARRY_VALUE", 0.7)
 # Perishable leftover is dead money, and is punished above its face cost.
-WASTE_PENALTY = _f("WASTE_PENALTY", 1.5)
+#
+# SPEC §3(d) suggested 1.5. The value has to be large because of a units
+# mismatch: the `protein` objective is `protein - PROTEIN_COST_WEIGHT * cost`,
+# with protein in grams and cost in pounds, so a gram of protein is implicitly
+# worth £2 and a small penalty never wins an argument.
+#
+# Re-measured on the current 24-recipe catalogue (a fortnight at Aldi, £60):
+#
+#   penalty    spend    waste   protein/d
+#       1.5   £51.32    £2.91        134g
+#      15.0   £51.32    £2.91        134g   <- no different from 1.5 any more
+#      50.0   £47.79    £1.58        132g   <- cheaper AND less waste
+#     100.0   £48.14    £1.43        131g
+#
+# 50 is the knee: £3.53 cheaper over the fortnight and nearly half the waste,
+# for 2g/day of protein. It stops the solver buying mince, which was the single
+# worst waster. Re-measure this table when the catalogue changes — an earlier
+# reading of 15 was correct before migration 008 and is now a no-op.
+WASTE_PENALTY = _f("WASTE_PENALTY", 50.0)
 # Prototype objective was `protein - 0.5 * cost`. CLAUDE.md is explicit that the
 # under-spend behaviour this produces is a feature, so the weight is preserved.
 PROTEIN_COST_WEIGHT = _f("PROTEIN_COST_WEIGHT", 0.5)

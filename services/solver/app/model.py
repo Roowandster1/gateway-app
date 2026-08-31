@@ -38,6 +38,17 @@ class SolveParams:
     pantry: dict[str, float] | None = None
     exclude_items: tuple[str, ...] = ()
     exclude_recipes: tuple[str, ...] = ()
+    # `protein` is the shipped default, and the reason is the budget slider.
+    #
+    # `cheapest` looked like the honest choice for a budgeting app until it was
+    # measured: it spends the floor and nothing more, so at Aldi every budget from
+    # £25 to £60 returns the same £21.32 plan. The app's central input would do
+    # nothing above the floor. Under `protein` the budget does real work —
+    # £25 -> £24.43 at 132g/day, £30 -> £29.44 at 144g, £40 -> £32.72 at 147g —
+    # and then it stops and hands the rest back, which is exactly the behaviour
+    # CLAUDE.md says to preserve.
+    #
+    # `cheapest` stays available, and is what /floor uses to price the floor.
     objective: str = "protein"
 
 

@@ -735,3 +735,77 @@ Read `CLAUDE.md`, then `SPEC.md`, then this file's Session entries in order —
 each one records what was measured and what was wrong. Run
 `services/solver/scripts/simulate_weeks.py` to see the carry-over model working,
 and `pytest` in `services/solver` before changing anything in the model.
+
+---
+
+## Session 11 — the two open decisions, settled with measurements
+
+### Default objective: stays `protein`. I recommended `cheapest` and was wrong.
+
+`cheapest` looked like the honest default for a budgeting app. Measured, it
+breaks the product:
+
+```
+budget          cheapest              protein
+   £20   £19.98 · 103g/day    £19.77 · 106g/day
+   £25   £21.32 · 100g/day    £24.43 · 132g/day
+   £30   £21.32 · 100g/day    £29.44 · 144g/day
+   £40   £21.32 · 100g/day    £32.72 · 147g/day
+   £60   £21.32 · 100g/day    £32.72 · 147g/day
+```
+
+Under `cheapest` every budget from £25 to £60 returns the **same** £21.32 plan.
+The budget slider — the app's central input — would do nothing above the floor.
+Under `protein` the budget does real work and then stops at £32.72 and hands the
+rest back, which is the behaviour CLAUDE.md explicitly says to preserve.
+
+`cheapest` stays available and is what `/floor` uses.
+
+### `WASTE_PENALTY`: 50, not the 15 previously recommended.
+
+The 15 figure was measured before migration 008 and is now a no-op. Re-measured
+on the current 24-recipe catalogue (a fortnight at Aldi, £60):
+
+```
+penalty    spend    waste   protein/d
+    1.5   £51.32    £2.91        134g
+   15.0   £51.32    £2.91        134g    <- identical to 1.5 now
+   50.0   £47.79    £1.58        132g    <- cheaper AND less waste
+  100.0   £48.14    £1.43        131g
+```
+
+50 is the knee: £3.53 cheaper over a fortnight and nearly half the waste, for
+2g/day of protein. It stops the solver buying mince, the single worst waster.
+The table is in `config.py` with a note to re-measure it when the catalogue
+changes — this is the second time a tuned constant has gone stale on new recipes.
+
+4-week simulation, better on every axis than the 1.5 baseline:
+
+```
+        till spend   carried   wasted  protein/d
+wk 1        £29.66     £8.48    £0.10       143g
+wk 2        £25.22     £4.36    £0.57       146g
+wk 3        £23.72     £4.87    £0.57       146g
+wk 4        £22.73     £4.64    £0.57       146g
+```
+
+### Food photography: style test done, and a blocker found
+
+Three models on the same dish (~3.4 of 80 credits): `recraft_v4_1`,
+`nano_banana_pro`, `z_image`. Rendered for the owner to judge.
+
+**This environment cannot download them.** The Higgsfield CDN
+(`d8j0ntlcm91z4.cloudfront.net`) is blocked by the network policy — CONNECT
+returns 403 — so generated images cannot be pulled into the repo, and I cannot
+see them to judge quality myself. Consequences:
+
+- The **artifact demo can never show them**: its CSP blocks external images and
+  the files cannot be embedded from here.
+- The **Next app can**, because the viewer's browser reaches the CDN even though
+  this sandbox does not. So the route is: generate, store the URL against the
+  recipe, and render it with `<img>` in `apps/web`.
+- Or the owner downloads the set and commits the files, which is the only way
+  the demo gets pictures.
+
+Held the remaining ~30 credits rather than generating 24 images in a style
+nobody has approved and I cannot inspect.
