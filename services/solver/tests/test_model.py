@@ -144,12 +144,14 @@ def test_binding_constraint_is_identified_not_guessed(aldi):
         (dict(budget=5.0), "budget"),
         (dict(budget=30.0, min_protein_per_day=250.0), "min_protein_per_day"),
         (dict(budget=30.0, max_cook_minutes_per_day=8.0), "max_cook_minutes_per_day"),
-        (dict(budget=60.0, days=14), "breakfast_recipe_supply"),
     ]
     for kwargs, expected in cases:
         with pytest.raises(Infeasible) as exc:
             solve_plan(items, recipes, SolveParams(store="aldi", **kwargs))
-        assert exc.value.binding == expected, f"{kwargs} named {exc.value.binding}"
+        # Constraints can bind jointly, so the expected one must be named as
+        # the primary blocker or as a secondary — never silently dropped.
+        named = [exc.value.binding] + exc.value.also_binding
+        assert expected in named, f"{kwargs} named {named}, expected {expected}"
         assert exc.value.suggestion, "an infeasible answer must explain itself"
 
 
@@ -171,3 +173,34 @@ def test_no_budget_number_when_money_is_not_the_problem(aldi):
         solve_plan(items, recipes,
                    SolveParams(store="aldi", budget=30.0, min_protein_per_day=250.0))
     assert exc.value.min_feasible_budget is None
+
+
+def test_two_week_plans_are_feasible(aldi):
+    """
+    Migration 006 added four breakfasts. Before it, three breakfast recipes at
+    max_repeat 3 could not fill fourteen days and the solver correctly reported
+    breakfast_recipe_supply. This is the guard that the fortnight stays solvable.
+    """
+    items, recipes = aldi
+    plan = solve_plan(items, recipes, SolveParams(store="aldi", budget=60.0, days=14))
+    assert plan.spend <= 60.0
+    assert plan.protein_per_day >= config.DEFAULT_MIN_PROTEIN_PER_DAY
+    breakfasts = sum(m["servings"] for m in plan.meals if m["slot"] == "breakfast")
+    assert breakfasts == 14
+
+
+def test_jointly_binding_constraints_are_all_reported(aldi):
+    """
+    Demanding 12 distinct mains is achievable on its own, but doing it puts the
+    budget and the protein floor out of reach. Reporting only the largest slack
+    would send the user to fix one thing and hit the next immediately, so the
+    secondary blockers must come back too.
+    """
+    items, recipes = aldi
+    with pytest.raises(Infeasible) as exc:
+        solve_plan(items, recipes,
+                   SolveParams(store="aldi", budget=30.0, min_distinct_mains=12))
+    e = exc.value
+    assert e.also_binding, "joint infeasibility reported only one constraint"
+    assert len([e.binding] + e.also_binding) >= 2
+    assert "both have to move" in e.suggestion or "—" in e.suggestion

@@ -63,6 +63,7 @@ def solve(req: SolveRequest):
             "binding": e.binding,
             "suggestion": e.suggestion,
             "min_feasible_budget": e.min_feasible_budget,
+            "also_binding": e.also_binding,
         })
 
     body = dataclasses.asdict(plan)

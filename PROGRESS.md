@@ -300,3 +300,53 @@ Still open for the owner: `WASTE_PENALTY` 1.5 -> 15 (open decision 5), the
 default objective (open decision 6), and whether a 2-week plan is two linked
 weekly shops rather than one basket — one shop cannot cover a fortnight of
 3-day-shelf-life chicken without breaking CLAUDE.md hard rule 4.
+
+---
+
+## Session 4 — breakfasts, and a demo
+
+**Migration 006: four more breakfasts.** `pbtoast`, `beanstoast`, `eggwrap`,
+`oatpancake`. Every ingredient is already priced, so no new items and no new
+prices. Seven breakfasts clears the 14-day slot count, and 2-week plans now
+solve — Aldi 14 days lands at £44.00.
+
+More variety also improved the weekly plan outright. The 4-week simulation is
+now monotonic, where before it sawtoothed:
+
+```
+        till spend   carried   wasted  protein/d
+wk 1        £29.93     £7.45    £3.72       112g      (was £29.67 / 108g)
+wk 2        £25.06     £6.29    £2.59       113g
+wk 3        £23.21     £5.87    £2.59       113g
+wk 4        £18.97     £3.13    £2.59       113g
+```
+
+**Two findings from building the demo, both real**
+
+1. **A 140g-protein "cut" is not reachable.** Measured against the catalogue,
+   the most protein available within 1700–2100 kcal is **110g/day**. The recipes
+   run about 4.3g protein per 100 kcal; a cut needs nearer 6.7. Presets were
+   corrected to what the data supports rather than to what sounds right.
+2. **Bulk is impossible at any budget or meal count.** 2800 kcal/day cannot be
+   reached — at 3 meals a day the ceiling is about 2400, and raising it to 5
+   just moves the blocker to `main_recipe_supply`. The catalogue has no
+   calorie-dense snack, and the `snack` meal_slot is still unused. Bulk is left
+   in the demo deliberately: the honest INFEASIBLE answer is the feature.
+
+**The demo.** `demo/` holds `plans.json` (228 combinations, every one solved by
+CBC via `scripts/export_demo.py`) and a static front end embedding it. Nothing
+is mocked — the front end is static so it cannot call the solver, and inventing
+numbers would demo nothing. Four screens matching the schematic: shop, length,
+budget, goal, then the plan and the shopping list. The budget slider shows the
+real feasible floor and refuses honestly below it.
+
+---
+
+## Next
+
+- **Calorie-dense snack recipes**, to make `bulk` reachable and put the unused
+  `snack` slot to work.
+- **P2 proper**: the flow in `apps/web` against the live solver, not a static
+  export.
+- Still open: `WASTE_PENALTY` 1.5 -> 15, the default objective, and whether a
+  2-week plan is two linked shops (the demo copy already promises it is).

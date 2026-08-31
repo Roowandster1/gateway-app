@@ -80,10 +80,15 @@ class Infeasible(Exception):
 
 class Infeasible(Exception):
     def __init__(self, binding: str = "unknown", suggestion: str = "",
-                 min_feasible_budget: float | None = None):
+                 min_feasible_budget: float | None = None,
+                 also_binding: list[str] | None = None):
         self.binding = binding
         self.suggestion = suggestion
         self.min_feasible_budget = min_feasible_budget
+        # Constraints can bind jointly — asking for 12 distinct mains also puts
+        # the protein floor out of reach. Reporting only the largest slack would
+        # send the user to fix one thing and hit the other immediately.
+        self.also_binding = also_binding or []
         super().__init__(suggestion or f"no feasible plan (binding: {binding})")
 
 
@@ -398,7 +403,12 @@ def diagnose(items, recipes, params) -> Infeasible:
         else:
             suggestion += " No budget makes this work — the targets themselves need to move."
 
-    return Infeasible(binding, suggestion, floor)
+    also = [n for rel, n, _ in violated[1:] if rel > 1e-6]
+    if also:
+        names = " and ".join(_PLAIN_ENGLISH.get(n, n).rstrip(".").lower() for n in also)
+        suggestion += f" Note that {names} — both have to move."
+
+    return Infeasible(binding, suggestion, floor, also)
 
 
 def _detail(binding, absolute, params) -> str:
