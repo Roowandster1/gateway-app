@@ -33,6 +33,7 @@ class SolveParams:
     kcal_band: tuple[float, float] = config.DEFAULT_KCAL_BAND
     max_cook_minutes_per_day: float = config.DEFAULT_MAX_COOK_MINUTES_PER_DAY
     max_repeat: int = config.DEFAULT_MAX_REPEAT
+    max_snacks_per_day: float = config.DEFAULT_MAX_SNACKS_PER_DAY
     min_distinct_mains: int = config.DEFAULT_MIN_DISTINCT_MAINS
     pantry: dict[str, float] | None = None
     exclude_items: tuple[str, ...] = ()
@@ -144,15 +145,19 @@ def _build(items, recipes, params, *, elastic=False, enforce_budget=True) -> _Bu
     p = params
     items, recipes, carries, pantry = _prepare(items, recipes, params)
 
-    mains = [s for s, r in recipes.items() if r.meal_slot != "breakfast"]
+    mains = [s for s, r in recipes.items() if r.meal_slot == "main"]
     breakfasts = [s for s, r in recipes.items() if r.meal_slot == "breakfast"]
+    snacks = [s for s, r in recipes.items() if r.meal_slot == "snack"]
     main_servings = p.days * (p.meals_per_day - 1) * p.household_size
     breakfast_servings = p.days * p.household_size
 
     prob = pulp.LpProblem("meal_plan", pulp.LpMinimize)
 
-    x = {s: pulp.LpVariable(f"x_{s}", 0, p.max_repeat * p.household_size, cat="Integer")
-         for s in recipes}
+    def repeat_cap(slug):
+        mult = config.SNACK_REPEAT_MULTIPLIER if recipes[slug].meal_slot == "snack" else 1
+        return p.max_repeat * p.household_size * mult
+
+    x = {s: pulp.LpVariable(f"x_{s}", 0, repeat_cap(s), cat="Integer") for s in recipes}
     y = {s: pulp.LpVariable(f"y_{s}", 0, config.MAX_PACKS_PER_ITEM, cat="Integer")
          for s in items}
     leftover = {s: pulp.LpVariable(f"L_{s}", 0, cat="Continuous") for s in items}
@@ -192,6 +197,15 @@ def _build(items, recipes, params, *, elastic=False, enforce_budget=True) -> _Bu
              >= breakfast_servings
              - slack("breakfast_recipe_supply", breakfast_servings)), "breakfast_lo"
     prob += pulp.lpSum(x[s] for s in breakfasts) <= breakfast_servings, "breakfast_hi"
+
+    # Snacks are optional extras, not one of meals_per_day. They exist so a high
+    # calorie target is reachable at all: three meals a day of these recipes tops
+    # out around 2400 kcal, which made every `bulk` request infeasible on
+    # kcal_band_low no matter the budget. Capped so the solver cannot answer a
+    # calorie floor with an unbounded pile of peanut butter.
+    if snacks:
+        prob += (pulp.lpSum(x[s] for s in snacks)
+                 <= p.max_snacks_per_day * p.days * p.household_size), "max_snacks"
 
     protein = pulp.lpSum(x[s] * recipes[s].macros(items)[1] for s in recipes)
     kcal = pulp.lpSum(x[s] * recipes[s].macros(items)[0] for s in recipes)

@@ -30,7 +30,7 @@ GOALS = {
     "frugal":   dict(label="Getting by", kcal_band=(1700, 2400), min_protein_per_day=55),
     "cut":      dict(label="Cut",        kcal_band=(1700, 2100), min_protein_per_day=100),
     "maintain": dict(label="Maintain",   kcal_band=(2000, 2700), min_protein_per_day=100),
-    "bulk":     dict(label="Bulk",       kcal_band=(2800, 3300), min_protein_per_day=140),
+    "bulk":     dict(label="Bulk",       kcal_band=(2800, 3300), min_protein_per_day=130),
 }
 STORES = ["aldi", "tesco"]
 DAYS = [1, 2, 3, 5, 7, 14]

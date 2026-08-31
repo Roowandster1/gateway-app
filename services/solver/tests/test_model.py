@@ -119,23 +119,36 @@ def test_tesco_is_dearer_than_aldi(aldi, tesco):
 
 # --- infeasibility as a feature (SPEC §2) ----------------------------------
 
-def test_tesco_at_25_is_infeasible_and_reports_a_floor(tesco):
-    """KICKOFF §3, the case that must work."""
+def test_a_budget_below_the_floor_is_infeasible_and_names_the_floor(tesco):
+    """
+    KICKOFF §3 pinned this to "Tesco, £25 -> infeasible". Migration 008's snacks
+    dropped the Tesco floor from £25.89 to £23.77, so £25 now solves and the
+    literal case no longer holds. The behaviour it was protecting still does, so
+    it is asserted against the measured floor rather than a hardcoded price.
+    """
     items, recipes = tesco
+    floor = cheapest_feasible_budget(items, recipes,
+                                     SolveParams(store="tesco", budget=999.0))
+    assert floor is not None
     with pytest.raises(Infeasible) as exc:
-        solve_plan(items, recipes, SolveParams(store="tesco", budget=25.0))
+        solve_plan(items, recipes, SolveParams(store="tesco", budget=floor - 1.0))
     e = exc.value
     assert e.binding == "budget"
-    assert e.min_feasible_budget is not None
-    assert e.min_feasible_budget > 25.0
+    assert e.min_feasible_budget == pytest.approx(floor, abs=0.02)
     assert "£" in e.suggestion
 
 
-def test_aldi_at_25_is_feasible(aldi):
-    """KICKOFF §3: the same targets must work at Aldi, around £24.94."""
-    items, recipes = aldi
-    plan = solve_plan(items, recipes, SolveParams(store="aldi", budget=25.0))
-    assert plan.spend == pytest.approx(24.94, abs=0.5)
+def test_aldi_undercuts_the_tesco_floor(aldi, tesco):
+    """The same targets that fail at Tesco's floor must be affordable at Aldi."""
+    a_items, a_recipes = aldi
+    t_items, t_recipes = tesco
+    aldi_floor = cheapest_feasible_budget(a_items, a_recipes,
+                                          SolveParams(store="aldi", budget=999.0))
+    tesco_floor = cheapest_feasible_budget(t_items, t_recipes,
+                                           SolveParams(store="tesco", budget=999.0))
+    assert aldi_floor < tesco_floor
+    plan = solve_plan(a_items, a_recipes, SolveParams(store="aldi", budget=tesco_floor))
+    assert plan.spend <= tesco_floor
 
 
 def test_binding_constraint_is_identified_not_guessed(aldi):
@@ -159,8 +172,10 @@ def test_binding_constraint_is_identified_not_guessed(aldi):
 def test_floor_is_actually_feasible(tesco):
     """The reported cheapest week must itself solve — otherwise it is a guess."""
     items, recipes = tesco
+    measured = cheapest_feasible_budget(items, recipes,
+                                        SolveParams(store="tesco", budget=999.0))
     with pytest.raises(Infeasible) as exc:
-        solve_plan(items, recipes, SolveParams(store="tesco", budget=25.0))
+        solve_plan(items, recipes, SolveParams(store="tesco", budget=measured - 1.0))
     floor = exc.value.min_feasible_budget
     plan = solve_plan(items, recipes,
                       SolveParams(store="tesco", budget=floor, objective="cheapest"))
@@ -192,15 +207,15 @@ def test_two_week_plans_are_feasible(aldi):
 
 def test_jointly_binding_constraints_are_all_reported(aldi):
     """
-    Demanding 12 distinct mains is achievable on its own, but doing it puts the
-    budget and the protein floor out of reach. Reporting only the largest slack
-    would send the user to fix one thing and hit the next immediately, so the
-    secondary blockers must come back too.
+    200g of protein inside a 2300 kcal ceiling fails on both counts at once.
+    Reporting only the largest slack would send the user to fix one thing and hit
+    the next immediately, so the secondary blockers must come back too.
     """
     items, recipes = aldi
     with pytest.raises(Infeasible) as exc:
         solve_plan(items, recipes,
-                   SolveParams(store="aldi", budget=30.0, min_distinct_mains=12))
+                   SolveParams(store="aldi", budget=30.0, min_protein_per_day=200.0,
+                               kcal_band=(2000.0, 2300.0)))
     e = exc.value
     assert e.also_binding, "joint infeasibility reported only one constraint"
     assert len([e.binding] + e.also_binding) >= 2

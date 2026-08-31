@@ -21,6 +21,7 @@ class SolveRequest(BaseModel):
     kcal_band: tuple[float, float] = config.DEFAULT_KCAL_BAND
     max_cook_minutes_per_day: float = config.DEFAULT_MAX_COOK_MINUTES_PER_DAY
     max_repeat: int = config.DEFAULT_MAX_REPEAT
+    max_snacks_per_day: float = config.DEFAULT_MAX_SNACKS_PER_DAY
     min_distinct_mains: int = config.DEFAULT_MIN_DISTINCT_MAINS
     # Free stock, keyed by item slug, in the item's unit.
     pantry: dict[str, float] = Field(default_factory=dict)

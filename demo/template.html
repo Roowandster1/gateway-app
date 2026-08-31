@@ -478,7 +478,7 @@ input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:6
       return '<details class="meal"><summary>'
         + '<span class="mult">'+m.servings+'&times;</span>'
         + '<span class="nm">'+esc(m.name)
-        + (m.slot==="breakfast" ? '<span class="slot">breakfast</span>' : '')+'</span>'
+        + (m.slot!=="main" ? '<span class="slot">'+esc(m.slot)+'</span>' : '')+'</span>'
         + '<span class="mac">'+Math.round(m.protein_per_serving)+'g · '
         + Math.round(m.kcal_per_serving)+' kcal<br>'+m.minutes+' min</span>'
         + '<span class="chev">&#9654;</span></summary>'

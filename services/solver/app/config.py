@@ -36,6 +36,12 @@ DEFAULT_MIN_PROTEIN_PER_DAY = _f("DEFAULT_MIN_PROTEIN_PER_DAY", 100)
 DEFAULT_KCAL_BAND = (_f("DEFAULT_KCAL_MIN", 2000), _f("DEFAULT_KCAL_MAX", 2700))
 DEFAULT_MAX_COOK_MINUTES_PER_DAY = _f("DEFAULT_MAX_COOK_MINUTES_PER_DAY", 75)
 DEFAULT_MAX_REPEAT = _i("DEFAULT_MAX_REPEAT", 3)
+# Snacks sit outside meals_per_day — see the snack cap in model.py.
+DEFAULT_MAX_SNACKS_PER_DAY = _f("DEFAULT_MAX_SNACKS_PER_DAY", 2)
+# Snack variety matters far less than meal variety — nobody objects to the same
+# banana and peanut butter twice — so snacks get a looser repeat allowance.
+# Without it, max_repeat caps a fortnight at roughly one snack a day.
+SNACK_REPEAT_MULTIPLIER = _i("SNACK_REPEAT_MULTIPLIER", 4)
 DEFAULT_MIN_DISTINCT_MAINS = _i("DEFAULT_MIN_DISTINCT_MAINS", 5)
 
 # --- solver limits --------------------------------------------------------

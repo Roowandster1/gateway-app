@@ -477,3 +477,66 @@ Demo re-exported: 624 combinations, 6 durations, 4 goals. 40 tests.
 - **The receipt test.** Still the gate on P2, still untouched.
 - Calorie-dense snacks, to make `bulk` reachable.
 - Still open: `WASTE_PENALTY` 1.5 -> 15, and the default objective.
+
+---
+
+## Session 7 — snacks, and the acceptance case that stopped holding
+
+### The `snack` slot existed since migration 001 and was never used
+
+That was why `bulk` was impossible at any budget: three meals a day of these
+recipes tops out near 2400 kcal, and no amount of money adds a fourth. Migration
+008 adds five snacks — peanut butter banana, cheese on toast, an oats and peanut
+butter pot, yoghurt with banana, boiled eggs — all built from already-priced
+items, all overlapping with what the mains already justify buying.
+
+Two model changes went with them:
+
+- `meal_slot == "snack"` is now its own slot. It was being lumped in with mains,
+  because `mains` was defined as everything that is not breakfast.
+- Snacks get a looser repeat allowance (`SNACK_REPEAT_MULTIPLIER`, default 4).
+  Snack variety matters far less than meal variety, and without it `max_repeat`
+  capped a fortnight at roughly one snack a day.
+
+`bulk` at 140g protein still failed over 14 days, by 7g/day. The measured
+ceiling is 133g, so the preset is **130g** — the number the catalogue supports,
+not the one that sounds right. Bulk now solves at 1, 7 and 14 days
+(£12.71 / £24.27 / £49.69 at Aldi).
+
+### Snacks made everything else cheaper
+
+Cheap calorie-dense snacks displace expensive meals, so the floors moved:
+
+```
+                before    after
+aldi  maintain  £21.29   £19.38
+tesco maintain  £25.89   £23.77
+```
+
+### This broke the KICKOFF §3 acceptance case, and that is worth saying plainly
+
+KICKOFF §3 pins "Tesco, £25, 100g protein, 7 days -> infeasible". **£25 now
+solves at Tesco**, because the Tesco floor fell to £23.77. That is the catalogue
+improving, not a regression — but it is a documented acceptance case no longer
+holding, so it is flagged rather than quietly edited away.
+
+Four tests were rewritten to assert the *behaviour* against a floor measured at
+runtime rather than a hardcoded price: a budget below the floor is infeasible,
+names `budget`, reports the floor, and that floor is itself solvable. Aldi is
+still asserted to undercut Tesco. The prototype-parity numbers (£24.94, £29.67)
+are now historical — the recipe set has deliberately changed twice since.
+
+**KICKOFF §3 should be updated** to describe the property rather than the price,
+or the numbers will drift again the next time a recipe is added.
+
+40 tests. Demo re-exported.
+
+---
+
+## Next
+
+- **Design pass.** Recommended holding the image generation until the recipe set
+  settled — it now has (19 -> 24 recipes). Style test first: ~3 credits for the
+  same dish across two or three models, then ~24 for the set on `recraft_v4_1`.
+- **The receipt test.** Still the gate on P2, still untouched.
+- Still open: `WASTE_PENALTY` 1.5 -> 15, and the default objective.
