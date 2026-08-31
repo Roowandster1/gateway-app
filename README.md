@@ -59,4 +59,5 @@ cd services/solver
 ## Reading order
 
 `CLAUDE.md` (rules and domain) → `SPEC.md` (schema, solver contract, phases) →
-`PROGRESS.md` (what is built, what is open) → `RECEIPTS.md` (the honesty metric).
+`DESIGN.md` (how it should look, and why) → `PROGRESS.md` (what is built, what is
+open) → `RECEIPTS.md` (the honesty metric).

@@ -881,3 +881,36 @@ Verified: 24 of 24 on local paths, all 10 thumbnails on a rendered plan report
 **I still have not judged whether the photographs are good.** I can see them now
 that they are local files, and they read as one coherent set — but whether they
 sell the product is the owner's call, not mine.
+
+---
+
+## Session 14 — DESIGN.md
+
+The owner pointed at [awesome-claude-design](https://github.com/VoltAgent/awesome-claude-design),
+a curated set of `DESIGN.md` files. The useful idea in it is the file format
+rather than the collection: **token, rule and rationale in one place**. A Figma
+export says what to use but not why; a brand PDF says why but too loosely for an
+agent to act on. This project had `CLAUDE.md` for how to build and nothing at all
+for how it should look, so every visual decision so far has lived only in commit
+messages.
+
+`DESIGN.md` now sits at the root, written to that repo's nine-section shape but
+**original to this product** — its own disclaimer is explicit that the curated
+files are inspiration, not systems to clone, and copying another company's
+visual identity would be wrong regardless.
+
+Nothing in it is aspirational. Every token, size and rule is already in
+`apps/web/app/globals.css` or `demo/template.html`; the file is the reasoning
+that was missing, including the parts learned the hard way:
+
+- the cost-split colours are **computed, not chosen**, with the note that two
+  earlier attempts failed the validator and that they must not be nudged by eye;
+- dark mode is re-stepped per surface, never inverted, and no colour may be
+  defined only inside a media or `[data-theme]` block;
+- generic class names are a hazard — `.bar` collided with the phone's top bar and
+  silently collapsed the cost bar to zero height;
+- the central rule that falls out of the product itself: **show two numbers where
+  one would mislead**, because a single figure is precisely how this app lies.
+
+Next: this can be fed to Claude Design (claude.ai/design) to scaffold a fuller
+component kit, or used as-is as the guardrail for new screens.
