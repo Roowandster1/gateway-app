@@ -1,0 +1,34 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pantry
+      POSTGRES_PASSWORD: pantry
+      POSTGRES_DB: pantry
+    ports:
+      - "5432:5432"
+    volumes:
+      - pantry_db:/var/lib/postgresql/data
+      # Migrations run in filename order on first boot of an empty volume.
+      - ./db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pantry -d pantry"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  solver:
+    build: ./services/solver
+    environment:
+      DATABASE_URL: postgresql://pantry:pantry@db:5432/pantry
+      # SPEC §3(d) weights. Overridable here for tuning without a code change.
+      CARRY_VALUE: "0.7"
+      WASTE_PENALTY: "1.5"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pantry_db:

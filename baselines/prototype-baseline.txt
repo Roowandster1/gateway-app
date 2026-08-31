@@ -1,0 +1,173 @@
+=== ALDI  ·  spend £24.94 of £25.00 ·  102g protein/day  ·  2001 kcal/day ===
+  MEALS
+   3x  Beef chilli + rice                    37g    805kcal 
+   3x  Lentil bolognese + pasta              33g    778kcal 
+   3x  Tuna pasta bake                       58g    720kcal 
+   3x  Carrot, lentil & onion soup           28g    640kcal 
+   3x  Porridge, banana & PB                 24g    625kcal (breakfast)
+   2x  Cheese omelette + toast               35g    618kcal 
+   2x  Scrambled eggs on toast               28g    491kcal (breakfast)
+   2x  Yoghurt, oats & peanut butter         24g    543kcal (breakfast)
+  SHOP
+   1x Wholemeal loaf             800g    £0.75  [240g left]
+   1x Porridge oats              1000g    £0.90  [660g left]
+   1x Vegetable oil 1L           1000ml   £1.85  [900ml left]
+   1x Stock cubes x10            10unit £0.55  [1unit left]
+   1x Eggs (large)               15unit £1.99  [3unit left]
+   1x Mature cheddar             400g    £2.69  [235g left]
+   1x Semi-skimmed milk          2272ml   £1.45  [1462ml left]
+   1x Natural yoghurt 1kg        1000g    £1.15  [600g left]
+   1x Brown onions               1000g    £0.95  [190g left]
+   1x Carrots                    1000g    £0.55  [220g left]
+   1x Bananas (each)             5unit £0.79
+   1x Beef mince 20%             500g    £2.79  [170g left]
+   2x Penne pasta                500g    £0.90  [370g left]
+   1x Long grain rice            1000g    £0.75  [775g left]
+   1x Peanut butter              340g    £1.39  [230g left]
+   3x Tuna chunks 145g           145g    £2.55
+   4x Chopped tomatoes           400g    £1.56  [250g left]
+   1x Red split lentils          500g    £0.99  [80g left]
+   1x Kidney beans 400g          400g    £0.39  [40g left]
+  Unused ingredient left in cupboard: 6422g
+
+  INFEASIBLE — budget too low for these constraints
+
+=== ALDI  ·  spend £29.67 of £30.00 ·  109g protein/day  ·  2028 kcal/day ===
+  MEALS
+   3x  Beef chilli + rice                    37g    805kcal 
+   3x  Chicken noodle stir-fry               40g    728kcal 
+   3x  Tuna pasta bake                       58g    720kcal 
+   3x  Porridge, banana & PB                 24g    625kcal (breakfast)
+   3x  Scrambled eggs on toast               28g    491kcal (breakfast)
+   2x  Red lentil dahl + rice                34g    804kcal 
+   2x  Cheese omelette + toast               35g    618kcal 
+   1x  Chicken & veg traybake + rice         39g    703kcal 
+   1x  Yoghurt, oats & peanut butter         24g    543kcal (breakfast)
+  SHOP
+   1x Wholemeal loaf             800g    £0.75  [400g left]
+   1x Porridge oats              1000g    £0.90  [710g left]
+   1x Vegetable oil 1L           1000ml   £1.85  [876ml left]
+   1x Curry powder               100g    £0.79  [88g left]
+   1x Stock cubes x10            10unit £0.55  [4unit left]
+   1x Eggs (large)               15unit £1.99
+   1x Mature cheddar             400g    £2.69  [235g left]
+   1x Semi-skimmed milk          2272ml   £1.45  [1432ml left]
+   1x Natural yoghurt 1kg        1000g    £1.15  [800g left]
+   1x Brown onions               1000g    £0.95  [480g left]
+   1x Bananas (each)             5unit £0.79  [1unit left]
+   1x Frozen mixed veg           1000g    £1.29  [400g left]
+   1x Chicken thigh fillets      650g    £3.29  [110g left]
+   1x Beef mince 20%             500g    £2.79  [170g left]
+   1x Penne pasta                500g    £0.45  [170g left]
+   1x Long grain rice            1000g    £0.75  [550g left]
+   1x Egg noodles                375g    £0.75  [105g left]
+   1x Peanut butter              340g    £1.39  [255g left]
+   3x Tuna chunks 145g           145g    £2.55
+   3x Chopped tomatoes           400g    £1.17  [90g left]
+   1x Red split lentils          500g    £0.99  [300g left]
+   1x Kidney beans 400g          400g    £0.39  [40g left]
+  Unused ingredient left in cupboard: 7211g
+
+=== TESCO  ·  spend £29.53 of £30.00 ·  101g protein/day  ·  2005 kcal/day ===
+  MEALS
+   3x  Red lentil dahl + rice                34g    804kcal 
+   3x  Lentil bolognese + pasta              33g    778kcal 
+   3x  Tuna pasta bake                       58g    720kcal 
+   3x  Cheese omelette + toast               35g    618kcal 
+   3x  Porridge, banana & PB                 24g    625kcal (breakfast)
+   3x  Yoghurt, oats & peanut butter         24g    543kcal (breakfast)
+   2x  Carrot, lentil & onion soup           28g    640kcal 
+   1x  Scrambled eggs on toast               28g    491kcal (breakfast)
+  SHOP
+   1x Wholemeal loaf             800g    £0.95  [320g left]
+   1x Porridge oats              1000g    £1.15  [610g left]
+   1x Vegetable oil 1L           1000ml   £2.15  [900ml left]
+   1x Curry powder               100g    £0.95  [82g left]
+   1x Stock cubes x10            10unit £0.70  [2unit left]
+   1x Eggs (large)               15unit £2.45  [3unit left]
+   1x Mature cheddar             400g    £3.25  [205g left]
+   1x Semi-skimmed milk          2272ml   £1.55  [1492ml left]
+   1x Natural yoghurt 1kg        1000g    £1.40  [400g left]
+   1x Brown onions               1000g    £1.15  [240g left]
+   1x Carrots                    1000g    £0.70  [420g left]
+   2x Bananas (each)             5unit £1.90  [4unit left]
+   2x Penne pasta                500g    £1.10  [370g left]
+   1x Long grain rice            1000g    £0.90  [775g left]
+   1x Peanut butter              340g    £1.70  [205g left]
+   3x Tuna chunks 145g           145g    £3.15
+   4x Chopped tomatoes           400g    £1.88  [250g left]
+   2x Red split lentils          500g    £2.50  [350g left]
+  Unused ingredient left in cupboard: 6619g
+
+=== ALDI  ·  spend £32.96 of £40.00 ·  110g protein/day  ·  2026 kcal/day ===
+  MEALS
+   3x  Beef chilli + rice                    37g    805kcal 
+   3x  Chicken & veg traybake + rice         39g    703kcal 
+   3x  Chicken noodle stir-fry               40g    728kcal 
+   3x  Tuna pasta bake                       58g    720kcal 
+   3x  Porridge, banana & PB                 24g    625kcal (breakfast)
+   3x  Scrambled eggs on toast               28g    491kcal (breakfast)
+   1x  Red lentil dahl + rice                34g    804kcal 
+   1x  Cheese omelette + toast               35g    618kcal 
+   1x  Yoghurt, oats & peanut butter         24g    543kcal (breakfast)
+  SHOP
+   1x Wholemeal loaf             800g    £0.75  [480g left]
+   1x Porridge oats              1000g    £0.90  [710g left]
+   1x Vegetable oil 1L           1000ml   £1.85  [874ml left]
+   1x Curry powder               100g    £0.79  [94g left]
+   1x Stock cubes x10            10unit £0.55  [3unit left]
+   1x Eggs (large)               15unit £1.99  [3unit left]
+   1x Mature cheddar             400g    £2.69  [265g left]
+   1x Semi-skimmed milk          2272ml   £1.45  [1432ml left]
+   1x Natural yoghurt 1kg        1000g    £1.15  [800g left]
+   1x Brown onions               1000g    £0.95  [560g left]
+   1x Bananas (each)             5unit £0.79  [1unit left]
+   1x Frozen mixed veg           1000g    £1.29  [100g left]
+   2x Chicken thigh fillets      650g    £6.58  [460g left]
+   1x Beef mince 20%             500g    £2.79  [170g left]
+   1x Penne pasta                500g    £0.45  [170g left]
+   1x Long grain rice            1000g    £0.75  [475g left]
+   1x Egg noodles                375g    £0.75  [105g left]
+   1x Peanut butter              340g    £1.39  [255g left]
+   3x Tuna chunks 145g           145g    £2.55
+   3x Chopped tomatoes           400g    £1.17  [240g left]
+   1x Red split lentils          500g    £0.99  [400g left]
+   1x Kidney beans 400g          400g    £0.39  [40g left]
+  Unused ingredient left in cupboard: 7630g
+
+=== TESCO  ·  spend £39.75 of £40.00 ·  110g protein/day  ·  2026 kcal/day ===
+  MEALS
+   3x  Beef chilli + rice                    37g    805kcal 
+   3x  Chicken & veg traybake + rice         39g    703kcal 
+   3x  Chicken noodle stir-fry               40g    728kcal 
+   3x  Tuna pasta bake                       58g    720kcal 
+   3x  Porridge, banana & PB                 24g    625kcal (breakfast)
+   3x  Scrambled eggs on toast               28g    491kcal (breakfast)
+   1x  Red lentil dahl + rice                34g    804kcal 
+   1x  Cheese omelette + toast               35g    618kcal 
+   1x  Yoghurt, oats & peanut butter         24g    543kcal (breakfast)
+  SHOP
+   1x Wholemeal loaf             800g    £0.95  [480g left]
+   1x Porridge oats              1000g    £1.15  [710g left]
+   1x Vegetable oil 1L           1000ml   £2.15  [874ml left]
+   1x Curry powder               100g    £0.95  [94g left]
+   1x Stock cubes x10            10unit £0.70  [3unit left]
+   1x Eggs (large)               15unit £2.45  [3unit left]
+   1x Mature cheddar             400g    £3.25  [265g left]
+   1x Semi-skimmed milk          2272ml   £1.55  [1432ml left]
+   1x Natural yoghurt 1kg        1000g    £1.40  [800g left]
+   1x Brown onions               1000g    £1.15  [560g left]
+   1x Bananas (each)             5unit £0.95  [1unit left]
+   1x Frozen mixed veg           1000g    £1.50  [100g left]
+   2x Chicken thigh fillets      650g    £7.90  [460g left]
+   1x Beef mince 20%             500g    £3.35  [170g left]
+   1x Penne pasta                500g    £0.55  [170g left]
+   1x Long grain rice            1000g    £0.90  [475g left]
+   1x Egg noodles                375g    £0.90  [105g left]
+   1x Peanut butter              340g    £1.70  [255g left]
+   3x Tuna chunks 145g           145g    £3.15
+   3x Chopped tomatoes           400g    £1.41  [240g left]
+   1x Red split lentils          500g    £1.25  [400g left]
+   1x Kidney beans 400g          400g    £0.49  [40g left]
+  Unused ingredient left in cupboard: 7630g
+
