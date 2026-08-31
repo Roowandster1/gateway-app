@@ -62,6 +62,10 @@ class Plan:
     store: str
     budget: float
     spend: float               # till spend: sum of packs x price. The honest number.
+    consumed_value: float      # spend minus what stays in the cupboard: the food
+                               # this period actually cost. On a 1-day plan the two
+                               # differ by 80%, and showing only `spend` reads as
+                               # "£15 for one day".
     carry_over_value: float    # value of NEW leftover this shop leaves behind
     wasted_value: float        # value of leftover that will rot
     cupboard_value: float      # value of the whole closing pantry
@@ -215,8 +219,13 @@ def _build(items, recipes, params, *, elastic=False, enforce_budget=True) -> _Bu
     for s in mains:
         prob += x[s] <= p.max_repeat * p.household_size * z[s]
         prob += x[s] >= z[s]
-    prob += (pulp.lpSum(z.values()) >= p.min_distinct_mains
-             - slack("min_distinct_mains", p.min_distinct_mains)), "min_distinct_mains"
+    # A variety floor above the number of main meals is not a preference, it is
+    # arithmetic: you cannot eat five different dinners across two meals. Asking
+    # for it used to make every 1- and 2-day plan infeasible on min_distinct_mains.
+    # Clamp to what the plan can physically hold, and to the recipes available.
+    distinct_floor = max(1, min(p.min_distinct_mains, main_servings, len(mains)))
+    prob += (pulp.lpSum(z.values()) >= distinct_floor
+             - slack("min_distinct_mains", distinct_floor)), "min_distinct_mains"
 
     carry_credit = config.CARRY_VALUE * pulp.lpSum(
         leftover[s] * items[s].unit_cost for s in items if carries[s])
@@ -317,6 +326,7 @@ def _extract(items, recipes, params, carries, pantry, x, y, prob) -> Plan:
 
     return Plan(
         store=params.store, budget=params.budget, spend=round(spend, 2),
+        consumed_value=round(spend - carry_value, 2),
         carry_over_value=round(carry_value, 2), wasted_value=round(waste_value, 2),
         cupboard_value=round(cupboard, 2),
         protein_per_day=round(tot_p / denom, 1), kcal_per_day=round(tot_k / denom, 1),

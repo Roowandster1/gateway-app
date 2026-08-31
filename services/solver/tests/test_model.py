@@ -6,7 +6,8 @@ instruction for when a plan looks too good.
 import pytest
 
 from app import config
-from app.model import Infeasible, SolveParams, solve_plan
+from app.model import (Infeasible, SolveParams, cheapest_feasible_budget,
+                       solve_plan)
 
 
 @pytest.fixture
@@ -204,3 +205,59 @@ def test_jointly_binding_constraints_are_all_reported(aldi):
     assert e.also_binding, "joint infeasibility reported only one constraint"
     assert len([e.binding] + e.also_binding) >= 2
     assert "both have to move" in e.suggestion or "—" in e.suggestion
+
+
+# --- short plans and the honest cost split -------------------------------
+
+@pytest.mark.parametrize("days", [1, 2, 3, 5, 7, 14])
+def test_every_supported_duration_solves(aldi, days):
+    """
+    1- and 2-day plans used to be infeasible on min_distinct_mains, because the
+    variety floor of 5 was compared against a plan holding only 2 or 4 main
+    meals. That is arithmetic, not a preference, so the floor is clamped.
+    """
+    items, recipes = aldi
+    plan = solve_plan(items, recipes,
+                      SolveParams(store="aldi", budget=140.0, days=days))
+    assert plan.spend > 0
+    assert plan.protein_per_day >= config.DEFAULT_MIN_PROTEIN_PER_DAY
+
+
+def test_short_plans_are_mostly_cupboard_not_food(aldi):
+    """
+    The point of showing consumed_value: a one-day shop buys whole packs, so
+    most of it is stock the shopper keeps. Reporting only `spend` reads as
+    "£15 for one day" and makes the product look broken.
+    """
+    items, recipes = aldi
+    day = solve_plan(items, recipes, SolveParams(store="aldi", budget=140.0, days=1))
+    assert day.consumed_value < day.carry_over_value
+    assert day.consumed_value < day.spend / 2
+
+
+def test_consumed_plus_cupboard_equals_spend(aldi):
+    items, recipes = aldi
+    for days in (1, 7):
+        p = solve_plan(items, recipes,
+                       SolveParams(store="aldi", budget=140.0, days=days))
+        assert p.consumed_value + p.carry_over_value == pytest.approx(p.spend, abs=0.02)
+
+
+def test_a_stocked_cupboard_lowers_the_floor(aldi):
+    """
+    The floor quoted to a user must distinguish the first shop from a typical
+    one. Quoting the empty-cupboard number as the weekly cost overstates it.
+    """
+    items, recipes = aldi
+    base = dict(store="aldi", min_protein_per_day=55.0, kcal_band=(1700.0, 2400.0))
+    empty = cheapest_feasible_budget(items, recipes, SolveParams(budget=999.0, **base))
+
+    pantry = {}
+    for _ in range(3):
+        pantry = solve_plan(items, recipes,
+                            SolveParams(budget=999.0, objective="cheapest",
+                                        pantry=pantry, **base)).closing_pantry
+    stocked = cheapest_feasible_budget(items, recipes,
+                                       SolveParams(budget=999.0, pantry=pantry, **base))
+    assert stocked < empty * 0.75, (
+        f"a stocked cupboard barely helped: £{empty:.2f} -> £{stocked:.2f}")

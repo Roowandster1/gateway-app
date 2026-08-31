@@ -407,3 +407,73 @@ expand to show their method. Re-exported with the methods included.
 - P2 proper: the four screens in `apps/web` against the live solver.
 - Still open: `WASTE_PENALTY` 1.5 -> 15, the default objective, and whether a
   2-week plan is two linked shops.
+
+---
+
+## Session 6 — short plans, and a floor that stops lying
+
+Two owner-reported problems, both real, both worse than reported.
+
+### Plans shorter than a week were impossible for a silly reason
+
+`min_distinct_mains` was hardcoded at 5 and compared against however many main
+meals the plan held. A 1-day plan holds two. So every 1- and 2-day request came
+back `INFEASIBLE — min_distinct_mains`, which is not a preference failing, it is
+arithmetic. The floor is now clamped to `min(requested, main_servings,
+recipes_available)`. All six durations solve:
+
+```
+       spend   food eaten   cupboard   protein/day
+ 1d   £15.35        £3.06     £12.29          126g
+ 2d   £19.83        £5.87     £13.96          116g
+ 3d   £22.38        £8.77     £13.61          118g
+ 5d   £24.12       £16.22      £7.90          117g
+ 7d   £33.24       £21.95     £11.29          113g
+14d   £44.00       £33.69     £10.31          101g
+```
+
+### The cost figures were misleading, and short plans made it obvious
+
+**80% of a one-day shop is stock the shopper still owns tomorrow.** Reporting
+`spend` alone reads as "£15 for one day" and makes the product look broken, when
+the day's food actually cost £3.06. `Plan.consumed_value` (spend minus
+cupboard) is now returned and shown alongside spend, cupboard and waste.
+
+### The quoted minimum was a first-week number sold as a weekly one
+
+The owner said people get by on far less than the £25 the app was quoting. Both
+halves of that turned out to be true.
+
+- £25 was Tesco on the `maintain` preset. The real Aldi floor is **£18.18 a
+  week, £2.60 a day**.
+- It **plateaus**. Dropping the protein target from 100g to 40g does not move it
+  at all — below a point you stop paying for nutrition and start paying for
+  packaging. That is the product's own thesis appearing as a hard floor.
+- **41% of that £18.18 is stock still owned on day 8.** Run the same targets
+  against a stocked cupboard and the week costs **£10.71, or £1.53 a day**.
+
+So the app was quoting an empty-cupboard stock-up as if it were the ongoing
+weekly cost. Two floors are now computed and shown per combination —
+`floor_first` and `floor_ongoing` — and a budget under the first floor says so
+usefully: *"Not possible from an empty cupboard. Once your cupboard is stocked
+the same week costs about £8.91, so this budget works from your second shop on."*
+
+A fourth preset, **Getting by** (55g protein, 1700–2400 kcal), sits below `cut`.
+
+**Honest limit.** 28 items, no value ranges. Real budget shopping runs on 20p
+noodles, value bread and yellow-sticker reductions. Those prices cannot be
+invented, so the £18.18 floor is a *catalogue* limit, not a food-cost one. This
+is the strongest argument yet for widening the catalogue with real observations.
+
+Demo re-exported: 624 combinations, 6 durations, 4 goals. 40 tests.
+
+---
+
+## Next
+
+- **Design pass with generated food imagery.** Priced: ~1.25 credits an image on
+  `recraft_v4_1`, so ~24 for all 19 recipes; 50 credits covers style tests and
+  redos. Owner's Higgs balance is currently 0.
+- **The receipt test.** Still the gate on P2, still untouched.
+- Calorie-dense snacks, to make `bulk` reachable.
+- Still open: `WASTE_PENALTY` 1.5 -> 15, and the default objective.

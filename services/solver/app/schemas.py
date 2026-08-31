@@ -66,6 +66,7 @@ class SolveResponse(BaseModel):
     budget: float
     # SPEC §3(e): three numbers, never one.
     spend: float
+    consumed_value: float
     carry_over_value: float
     wasted_value: float
     cupboard_value: float
