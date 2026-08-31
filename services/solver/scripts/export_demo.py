@@ -13,6 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.catalogue import load                                  # noqa: E402
+from app import config                                          # noqa: E402
 from app.model import (Infeasible, SolveParams, cheapest_feasible_budget,  # noqa: E402
                        solve_plan)
 
@@ -33,11 +34,28 @@ BUDGETS = {7: [x / 2 for x in range(30, 121, 5)],      # £15.00 - £60.00, 50p-
            14: [float(x) for x in range(30, 121, 5)]}  # £30 - £120, £5 steps
 
 
+def load_methods():
+    """Cooking copy, written by Claude and validated by app.method_check. It is
+    keyed by recipe, not by plan — the steps never change with the budget."""
+    import psycopg
+    with psycopg.connect(config.DATABASE_URL) as conn:
+        rows = conn.execute(
+            "SELECT slug, method_md FROM recipe WHERE method_md IS NOT NULL").fetchall()
+    out = {}
+    for slug, md in rows:
+        head, _, rest = md.partition("\n\n")
+        out[slug] = {"summary": head.strip(),
+                     "steps": [ln.split(". ", 1)[1] for ln in rest.strip().splitlines()
+                               if ". " in ln]}
+    return out
+
+
 def main():
     out = {"goals": {k: {"label": v["label"], "kcal_band": v["kcal_band"],
                          "protein": v["min_protein_per_day"]}
                      for k, v in GOALS.items()},
-           "stores": STORES, "plans": {}, "floors": {}}
+           "stores": STORES, "plans": {}, "floors": {},
+           "methods": load_methods()}
 
     for store in STORES:
         items, recipes, _ = load(store)

@@ -350,3 +350,60 @@ real feasible floor and refuses honestly below it.
   export.
 - Still open: `WASTE_PENALTY` 1.5 -> 15, the default objective, and whether a
   2-week plan is two linked shops (the demo copy already promises it is).
+
+---
+
+## Session 5 — cooking steps, via Claude
+
+All 19 recipes now have `method_md`. That gap is closed.
+
+**Where the model is allowed, and how that is enforced**
+
+CLAUDE.md rule 1 permits a model to write copy and forbids it near selection,
+pricing and quantities. The line is easy to state and easy to cross by accident:
+"stir in 200g of red lentils" puts a quantity the solver never chose in front of
+the user, and "finish with a knob of butter" adds an ingredient nobody bought,
+breaking rule 4.
+
+So generated copy is not trusted, it is **checked**:
+
+- `app/method_check.py` rejects any step stating a quantity (`200g`, `1.5
+  litres`, `2 tbsp`) or a pack count (`a tin of`, `3 stock cubes`), and any step
+  naming a catalogue item the recipe does not contain. Times and oven
+  temperatures pass — they are method, not quantity.
+- `scripts/generate_methods.py` calls `claude-opus-5` with structured outputs,
+  runs every result through the checker, retries once with the failures fed
+  back, and skips rather than publishing anything that fails twice. It runs
+  **offline against the database** — no plan ever waits on a model.
+- 15 tests in `tests/test_method_check.py`, written adversarially: quantities,
+  pack counts, a chicken smuggled into the dahl, yoghurt into a recipe without
+  it, and the false positives that would make the checker unusable ("toast the
+  curry powder" is a verb, "peanut" must not trip the `pea` alias).
+
+**On the seed copy.** This environment has no Anthropic credentials, so
+`generate_methods.py` could not be run here. The 19 methods in migration 007
+were written by Claude in-session — the same sanctioned path, the same model
+family — and put through the identical checker and migration writer. All 19
+passed on the first attempt. Re-run the script with a key to regenerate or to
+cover new recipes; `--all` redoes existing ones.
+
+**New catalogue gap: salt, pepper and water are assumed.** The checker allows
+them as store-cupboard basics and reports every use. They are not priced items,
+so strictly the basket does not cover them. Either add them to the catalogue
+with real prices, or state the assumption in the UI. Currently neither.
+
+**Demo.** `demo/` now builds from `template.html` + `plans.json` via
+`build.py`, instead of having the data baked irreversibly into the page. Meals
+expand to show their method. Re-exported with the methods included.
+
+---
+
+## Next
+
+- **The receipt test.** Still the gate on P2 and still the highest-value thing
+  in the project. 28 prices, none yet checked against a till. `RECEIPTS.md` is
+  waiting for row one.
+- Calorie-dense snack recipes, to make `bulk` reachable.
+- P2 proper: the four screens in `apps/web` against the live solver.
+- Still open: `WASTE_PENALTY` 1.5 -> 15, the default objective, and whether a
+  2-week plan is two linked shops.
