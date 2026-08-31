@@ -39,6 +39,14 @@ Regenerate seed SQL after editing the catalogue or the classification:
 python3 db/seed/generate.py
 ```
 
+The app (needs the solver running on :8000):
+
+```bash
+cd apps/web && npm install
+SOLVER_URL=http://127.0.0.1:8000 npm run dev
+# open http://localhost:3000
+```
+
 Tests and the 4-week acceptance simulation (both need a seeded database):
 
 ```bash

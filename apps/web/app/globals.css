@@ -1,26 +1,121 @@
 @import "tailwindcss";
 
+/* Same palette as the demo — one product, one identity. The cost-split
+   segments were validated with the dataviz palette checker against both
+   surfaces; do not nudge them by eye. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --ground: #f4f6f3;
+  --surface: #ffffff;
+  --surface-2: #edf0ec;
+  --surface-3: #e3e8e3;
+  --ink: #141a18;
+  --muted: #5d6b66;
+  --line: #dce2dd;
+  --accent: #e0a806;
+  --accent-ink: #3a2a00;
+  --good: #1c7a57;
+  --good-bg: #e3f1ea;
+  --warn: #af5227;
+  --warn-bg: #f7e9e1;
+  --bad: #a32c2c;
+  --bad-bg: #f7e6e4;
+  --seg-eaten: #2a5fa8;
+  --seg-cupboard: #1c7a57;
+  --seg-wasted: #b0512a;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --ground: #0e1211;
+    --surface: #161b19;
+    --surface-2: #1e2523;
+    --surface-3: #28312e;
+    --ink: #e7ede9;
+    --muted: #93a29c;
+    --line: #2a322f;
+    --accent: #f0be3a;
+    --accent-ink: #241900;
+    --good: #4fbe92;
+    --good-bg: #122a22;
+    --warn: #e08a57;
+    --warn-bg: #2c1d14;
+    --bad: #e5726f;
+    --bad-bg: #2e1717;
+    --seg-eaten: #5590d6;
+    --seg-cupboard: #35a87c;
+    --seg-wasted: #d0733f;
   }
 }
 
+@theme inline {
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-good: var(--good);
+  --color-good-bg: var(--good-bg);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-bad-bg: var(--bad-bg);
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--ground);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The range thumb cannot be styled with utilities. */
+input[type="range"] {
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--surface-3);
+}
+input[type="range"]::-moz-range-track {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--surface-3);
+}
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--surface);
+  margin-top: -11px;
+  box-shadow: 0 1px 5px rgb(0 0 0 / 0.2);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--surface);
+}
+input[type="range"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 6px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
 }

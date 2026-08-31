@@ -589,3 +589,65 @@ why. Found by inspecting computed styles, not by reading the CSS.
   yet checked against a till.
 - **KICKOFF §3 needs updating** — its acceptance case now solves (Session 7).
 - Still open: `WASTE_PENALTY` 1.5 -> 15, and the default objective.
+
+---
+
+## Session 9 — P2: the real app
+
+`apps/web` was an untouched `create-next-app` scaffold. It is now the product:
+the four onboarding screens from the owner's schematic, running against the live
+solver rather than a static export.
+
+**Shape**
+
+```
+app/api/solve/route.ts   POST -> solver /solve
+app/api/floor/route.ts   POST -> solver /floor
+lib/solver.ts            typed client; SOLVER_URL never reaches the browser
+lib/goals.ts             the four presets, with the measured numbers
+components/Planner.tsx   store -> length -> budget -> goal -> plan
+components/CostSplit.tsx the stacked spend bar, same validated palette
+```
+
+Next 16 + React 19 + Tailwind v4, same palette and typography as the demo, so
+they read as one product. Verified end to end in a browser against a live
+Postgres and CBC: floor £19.38, plan £29.44, 19 basket rows, ticking items
+updates the trolley total, both themes, production build clean, lint clean.
+
+**New solver endpoint: `POST /floor`.** The budget screen has to know the floor
+*before* anyone picks a number, and `/solve` only reveals it after failing.
+Returns two figures, never one — `first` for an empty cupboard, `ongoing` for a
+stocked one.
+
+**Three bugs found by running it, not by reading it**
+
+1. **`/solve` returned no `status` field.** The endpoint returned the plan
+   dataclass directly, so a successful plan and an infeasible one were
+   indistinguishable to a client — both are HTTP 200 by design. The header read
+   "No plan" over a working plan. Now `{"status": "ok", ...}`.
+2. **Next's dev server 403'd its own chunks on `127.0.0.1`.** The page rendered
+   and never hydrated, so nothing responded to a click and there was no error to
+   read. It is Next's dev-origin check; `allowedDevOrigins` now lists both
+   spellings.
+3. **"about £3.72 a one day".** `periodWord` was being string-mangled into a
+   noun. Split into `periodWord` ("for the week") and `periodNoun` ("a week").
+
+Also fixed a lint error rather than silencing it: the floor effect cleared state
+synchronously, cascading renders. The floor is now stored with the request key
+it belongs to, so a stale answer is derived away instead of cleared.
+
+**Note on SPEC §6.** That section gates P2 on the receipt test, which is still
+undone. Building the screens anyway is a deliberate call: the receipt test
+invalidates *prices*, which are data, not the flow. The onboarding is identical
+whether rice is 75p or 85p. It remains the highest-value outstanding task.
+
+---
+
+## Next
+
+- **The receipt test.** 28 prices, none checked against a till.
+- **Food photography** — 50 Higgs credits; the recipe set has settled at 24.
+- Persistence: `user_prefs`, `plan`, `plan_basket_line` and `pantry_stock` all
+  exist in the schema and nothing writes to them yet, so a plan is not saved and
+  the cupboard does not carry between visits. That is P4.
+- Still open: `WASTE_PENALTY` 1.5 -> 15, and the default objective.
