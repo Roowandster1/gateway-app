@@ -8,6 +8,10 @@ import pathlib
 HERE = pathlib.Path(__file__).parent
 tpl = (HERE / "template.html").read_text()
 data = (HERE / "plans.json").read_text()
+images = (HERE / "images.json").read_text()
 assert "__DATA__" in tpl, "template has no __DATA__ placeholder"
-(HERE / "index.html").write_text(tpl.replace("__DATA__", data))
-print(f"built index.html — {len(data)/1024:.0f} KB of solver output embedded")
+assert "__IMAGES__" in tpl, "template has no __IMAGES__ placeholder"
+out = tpl.replace("__DATA__", data).replace("__IMAGES__", images)
+(HERE / "index.html").write_text(out)
+print(f"built index.html — {len(data)/1024:.0f} KB solver output + "
+      f"{len(images)/1024:.0f} KB photos = {len(out)/1024:.0f} KB")

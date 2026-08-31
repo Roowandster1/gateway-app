@@ -846,3 +846,38 @@ tags render with correct URLs, and the layout reserves the space so it degrades
 to neutral placeholders when the CDN is unreachable — which is exactly what it
 does from this sandbox. **I have never seen these images.** Whether they are any
 good is the owner's call.
+
+---
+
+## Session 13 — the photography is self-hosted, and the demo has pictures
+
+All 24 photos now live in `apps/web/public/recipes`, 1.4MB total, named by
+recipe slug. Migration 011 repoints `recipe.image_url` at `/recipes/<slug>.webp`
+and asserts in SQL that no recipe is left on a CDN path, so a drifted slug fails
+the migration rather than silently 404ing in the UI. `db/seed/recipe_images.py`
+— the CDN mapping from migration 010 — is deleted.
+
+This removes the fragility recorded last session. No expiring links, no
+third-party dependency, and the repo owns its own assets.
+
+**The demo has photography now**, which external URLs made impossible: an
+Artifact's CSP blocks them outright. `demo/thumbs.py` centre-crops each photo to
+160px (2× the 56px it renders at, so it stays sharp on a retina screen) and
+inlines them as data URIs — 24 images for 92KB, against a 2.7MB page.
+
+**Two identification calls worth recording**, since four of the recipes are
+near-identical bowls:
+
+- `yogpb` was assigned early off a creamy base under the oats. When `oatpb`
+  (oats + peanut butter, no yoghurt) and `yogbanana` (yoghurt + oats, no peanut
+  butter) arrived, they confirmed it: `yogpb` is the only one with both.
+- The dahl was swapped mid-set. The first was on warm beige wood while every
+  other shot is pale painted wood; one odd surface undoes the point of shooting
+  to a single brief. Rejected crops are parked in scratch, not deleted.
+
+Verified: 24 of 24 on local paths, all 10 thumbnails on a rendered plan report
+`naturalWidth > 0` in both the app and the demo, both themes, no console errors.
+
+**I still have not judged whether the photographs are good.** I can see them now
+that they are local files, and they read as one coherent set — but whether they
+sell the product is the owner's call, not mine.
