@@ -651,3 +651,87 @@ whether rice is 75p or 85p. It remains the highest-value outstanding task.
   exist in the schema and nothing writes to them yet, so a plan is not saved and
   the cupboard does not carry between visits. That is P4.
 - Still open: `WASTE_PENALTY` 1.5 -> 15, and the default objective.
+
+---
+
+## Session 10 — finishing up
+
+- **Snack cooking steps.** Migration 008 added five snacks and left them without
+  `method_md`, so the demo showed "No steps written yet" on a quarter of the
+  recipes. Migration 009 fills them, through the same `app.method_check`
+  validator — no quantities, no ingredient outside each recipe's own list. All
+  five passed first time. **24 of 24 recipes now have steps.**
+- **KICKOFF §3 rewritten to describe the property rather than a price.** Its
+  original wording ("Tesco £25 → infeasible, Aldi ≈ £24.94") was exactly right
+  when written and is now wrong in both halves, because migration 008 moved the
+  floors. A test pinned to pounds fails on a catalogue improvement and passes on
+  nothing useful.
+
+---
+
+# STATE OF THE PROJECT
+
+## What exists and is verified
+
+| | |
+|---|---|
+| Schema | 9 migrations, clean rebuild verified from empty |
+| Catalogue | 28 items, 56 current prices, both stores |
+| Recipes | 24 (12 main, 7 breakfast, 5 snack), all with cooking steps |
+| Solver | FastAPI + PuLP/CBC. `/health`, `/solve`, `/floor`. 40 tests |
+| App | Next 16 / React 19 / Tailwind v4, four screens on the live solver |
+| Demo | 624 pre-solved combinations, published as an Artifact |
+
+Every headline number in this repo came out of CBC. No figure was written by
+hand, and no model is in the selection, pricing or quantity path.
+
+## What the model does that a chatbot cannot
+
+- Costs **whole packs**, so a 70g lentil recipe costs a 99p bag — which is what
+  makes the solver find a second and third lentil meal to justify it.
+- Splits leftovers into **carry-over** and **waste** by shelf life against the
+  plan horizon, values the first as an asset and penalises the second.
+- Treats pantry stock as free, so week 2 is materially cheaper than week 1.
+- Answers **INFEASIBLE with the binding constraint named** and the cheapest
+  feasible budget priced, via an elastic re-solve.
+
+## The three numbers worth remembering
+
+```
+£18.18   cheapest possible week at Aldi, empty cupboard
+£10.71   the same week with a stocked cupboard
+  £3.06  what a one-day plan's food actually costs, out of a £15.35 shop
+```
+
+## Open — and honest about it
+
+1. **THE RECEIPT TEST HAS NEVER BEEN DONE.** SPEC §6 makes it the honesty
+   metric and the gate on P2. 28 seed prices, none checked against a till.
+   `RECEIPTS.md` is waiting for row one. Everything else is downstream of this.
+2. **Nothing is persisted.** `user_prefs`, `plan`, `plan_basket_line` and
+   `pantry_stock` exist in the schema and nothing writes to them. A plan is not
+   saved and the cupboard does not carry between visits — so the retention
+   mechanic is proven in simulation but not lived. That is P4 and it is the
+   biggest functional gap.
+3. **The catalogue is the binding limit, not the solver.** 28 items, no value
+   ranges. Real budget shopping runs on 20p noodles and yellow-sticker
+   reductions. £18.18 is a *catalogue* floor. Those prices cannot be invented —
+   they have to be observed.
+4. **Salt, pepper and water are assumed** and are not priced items, so strictly
+   the basket does not cover them.
+5. **`carb_per_100` and `fat_per_100` are NULL for every item.** No fat or carb
+   constraint is possible until sourced.
+6. **`docker compose up` has never been run** — this environment cannot pull
+   images. The compose file and solver Dockerfile are written but unexercised.
+7. **Two decisions still open**: `WASTE_PENALTY` 1.5 → 15 (at 1.5 it provably
+   changes nothing under the `protein` objective), and whether `protein` or
+   `cheapest` ships as the default.
+8. **Food photography** — ~50 Higgs credits. The recipe set has settled at 24,
+   so images would be generated once.
+
+## If you pick this up cold
+
+Read `CLAUDE.md`, then `SPEC.md`, then this file's Session entries in order —
+each one records what was measured and what was wrong. Run
+`services/solver/scripts/simulate_weeks.py` to see the carry-over model working,
+and `pytest` in `services/solver` before changing anything in the model.

@@ -56,9 +56,17 @@ the domain knowledge lives there and not in a prompt you have to remember.
 > identify the binding constraint and re-solve with budget as the objective to find
 > the cheapest feasible week. Return both.
 >
-> Test case that must work: Tesco, £25, 100g protein/day, 7 days → infeasible, with
-> the minimum feasible budget reported. Same params at Aldi → feasible around
-> £24.94.
+> Test case that must work: the property, not a price. A budget below the measured
+> floor at a store must come back infeasible, name `budget` as the binding
+> constraint, report the minimum feasible budget, and that reported figure must
+> itself solve. Aldi must undercut Tesco at the same targets.
+>
+> **Do not pin these to fixed pounds.** The original wording said "Tesco, £25 →
+> infeasible, Aldi ≈ £24.94". Both held exactly when written and both are now
+> wrong: migration 008's snacks dropped the Tesco floor to £23.77, so £25 solves
+> there. Every recipe added moves the floors, so a test pinned to a price fails on
+> a catalogue improvement and passes on nothing useful. Measure the floor at
+> runtime and assert against that.
 
 ---
 
