@@ -166,6 +166,11 @@ input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:6
 .tab:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 
 .pane{flex:1;overflow-y:auto;max-height:430px;margin:0 -4px;padding:0 4px}
+/* A row sliced flat at the cap reads as the end of the list. Fade the last
+   26px only while there is more below, so the real last row is never faded. */
+.pane.more{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent);
+           mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent)}
+.pane:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .pane[hidden]{display:none!important}
 .meal{border-bottom:1px solid var(--line)}
 .meal:last-child{border-bottom:0}
@@ -333,8 +338,8 @@ input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:6
             <button class="tab" id="tabMeals" role="tab" aria-selected="true">The food</button>
             <button class="tab" id="tabShop" role="tab" aria-selected="false">Shopping list</button>
           </div>
-          <div class="pane" id="paneMeals"></div>
-          <div class="pane" id="paneShop" hidden></div>
+          <div class="pane" id="paneMeals" tabindex="0" role="group" aria-label="The meals in this plan"></div>
+          <div class="pane" id="paneShop" hidden tabindex="0" role="group" aria-label="The shopping list"></div>
         </div>
         <div id="planNo" hidden></div>
         <div class="cta"><button class="btn ghost" id="restart">Start again</button></div>
@@ -685,7 +690,17 @@ input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:6
     $("tabMeals").setAttribute("aria-selected", String(state.tab === "meals"));
     $("tabShop").setAttribute("aria-selected", String(state.tab === "shop"));
     renderKv();
+    markScroll($("paneMeals")); markScroll($("paneShop"));
   }
+
+  function markScroll(el){
+    if (!el) return;
+    el.classList.toggle("more", el.scrollTop + el.clientHeight < el.scrollHeight - 2);
+  }
+  ["paneMeals","paneShop"].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("scroll", function(){ markScroll(el); });
+  });
 
   document.addEventListener("click", function(e){
     var s = e.target.closest("[data-store]");
