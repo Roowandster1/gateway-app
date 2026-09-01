@@ -17,6 +17,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pulp
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app import filters                                        # noqa: E402
@@ -127,7 +129,7 @@ def one_combo(job):
         ongoing = cheapest_feasible_budget(
             items, recipes, SolveParams(budget=999.0, pantry=pantry, **base))
 
-    plans = {}
+    plans, missing = {}, []
     structural = None
     if first is None:
         try:
@@ -153,7 +155,22 @@ def one_combo(job):
                     f"£{first:.2f} is the cheapest {days}-day plan there "
                     f"for these targets.")}
             continue
-        p = solve_plan(items, recipes, SolveParams(budget=budget, **base))
+        # A 14-day plan over 222 recipes is a big enough MILP that CBC falls
+        # over when several run at once — every 1, 3 and 7-day combo finished
+        # and the crash was always on the first fortnight. Retry once, and if it
+        # fails again leave the key out: the demo already renders a missing
+        # combination as "outside the exported grid", which is true, rather than
+        # inventing a plan for it.
+        p = None
+        for attempt in (1, 2):
+            try:
+                p = solve_plan(items, recipes, SolveParams(budget=budget, **base))
+                break
+            except pulp.PulpSolverError:
+                if attempt == 2:
+                    missing.append(key)
+        if p is None:
+            continue
         plans[key] = {
             "status": "ok", "spend": p.spend,
             "consumed_value": p.consumed_value,
@@ -165,7 +182,7 @@ def one_combo(job):
             "basket": [vars(b) for b in p.basket]}
 
     return combo, {"first": first, "ongoing": ongoing,
-                   "recipes_left": report.total_remaining}, plans
+                   "recipes_left": report.total_remaining}, plans, missing
 
 
 def main():
@@ -181,13 +198,15 @@ def main():
            "budgets": {str(d): budgets_for(d) for d in DAYS},
            "plans": {}, "floors": {}, "methods": load_methods()}
 
-    # Three workers, not four: the fourth core keeps the dev server and the
-    # database responsive while this runs for half an hour.
-    with multiprocessing.Pool(3, initializer=_init_worker) as pool:
-        for n, (combo, floor, plans) in enumerate(
+    # Two workers, not three: a fortnight's MILP is large, and three of them at
+    # once is what CBC could not survive.
+    dropped = []
+    with multiprocessing.Pool(2, initializer=_init_worker) as pool:
+        for n, (combo, floor, plans, missing) in enumerate(
                 pool.imap_unordered(one_combo, jobs), 1):
             out["floors"][combo] = floor
             out["plans"].update(plans)
+            dropped.extend(missing)
             first = floor["first"]
             print(f"[{n:>3}/{len(jobs)}] {combo:<26} first "
                   f"{('£%.2f' % first) if first else 'none':>8}   ongoing "
@@ -199,6 +218,10 @@ def main():
     dest.write_text(json.dumps(out, separators=(",", ":")))
     ok = sum(1 for v in out["plans"].values() if v["status"] == "ok")
     print(f"\n{len(out['plans'])} combinations, {ok} feasible")
+    if dropped:
+        print(f"{len(dropped)} the solver could not finish, left out rather than faked:")
+        for k in dropped[:10]:
+            print("  " + k)
     print(f"wrote {dest} ({dest.stat().st_size / 1024:.0f} KB)")
 
 
