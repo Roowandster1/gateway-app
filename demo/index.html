@@ -70,12 +70,56 @@ body{background:var(--board);color:var(--ink);font-family:var(--sans);
 .topbar .idx{margin-left:auto;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;
   color:var(--ink-2)}
 .rail{display:flex;gap:3px;padding:0 12px;margin-top:10px}
-.rail i{height:3px;flex:1;background:var(--rule);border-radius:99px}
+.rail i{height:3px;flex:1;background:var(--rule);border-radius:99px;
+  transition:background .34s cubic-bezier(.22,.68,.28,1)}
 .rail i.on{background:var(--accent)}
 .rail[hidden]{display:none!important}
 
 .screen{padding:16px 16px 18px;flex:1;display:flex;flex-direction:column}
 .screen[hidden]{display:none!important}
+
+/* ---- moving between screens ----
+   Answering a question used to swap the panel like a slide deck: one frame you
+   are on the store question, the next you are on the diet one, with nothing in
+   between to say which way you went.
+
+   Now the incoming screen carries in from the direction you are travelling —
+   from the right going forward, from the left when you hit back — and its parts
+   land a beat apart, top to bottom, so the screen assembles rather than simply
+   appears. The heading arrives, then the choices, then the button, over about a
+   fifth of a second.
+
+   Only the incoming screen moves. Animating the outgoing one too would mean
+   holding both in the DOM and delaying the swap by the length of the exit, which
+   buys a nicer frame at the cost of making every tap feel slower — the wrong
+   trade on a form you tap through nine times.
+
+   Deliberately small and short: 22px of travel, done inside a third of a second.
+   Enough to read as movement, not enough to sit through twice. The
+   prefers-reduced-motion rule at the foot of this file switches all of it off. */
+@keyframes screen-in{
+  from{opacity:0;transform:translate3d(var(--slide,22px),0,0)}
+  to{opacity:1;transform:none}
+}
+@keyframes part-in{
+  from{opacity:0;transform:translate3d(0,10px,0)}
+  to{opacity:1;transform:none}
+}
+.screen{animation:screen-in .26s cubic-bezier(.22,.68,.28,1) both}
+.phone[data-dir="back"] .screen{--slide:-22px}
+/* Every direct child is one part: heading, sub-line, the choices, the button. */
+/* The delays are short on purpose. The Continue button is the last part to
+   land, and it is the one you are reaching for — at the beat this first had, it
+   took half a second to finish arriving, which you feel by the ninth question.
+   Everything is settled inside 0.4s. */
+.screen>*{animation:part-in .28s cubic-bezier(.22,.68,.28,1) both}
+.screen>:nth-child(1){animation-delay:.02s}
+.screen>:nth-child(2){animation-delay:.05s}
+.screen>:nth-child(3){animation-delay:.08s}
+.screen>:nth-child(4){animation-delay:.11s}
+.screen>:nth-child(n+5){animation-delay:.13s}
+/* The step name and counter change with the screen, so they get the same beat. */
+.topbar .lab,.topbar .idx{animation:part-in .3s cubic-bezier(.22,.68,.28,1) both}
 .q{font-size:25px;margin:0 0 14px;letter-spacing:-.03em;font-weight:700;line-height:1.15;
   text-wrap:balance}
 .q .sm{display:block;font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.1em;
@@ -178,8 +222,10 @@ input[type=range]:focus-visible{outline:3px solid var(--accent);outline-offset:4
 .cta{margin-top:auto;padding-top:18px}
 .btn{appearance:none;width:100%;cursor:pointer;font-family:var(--sans);font-size:15.5px;
   font-weight:700;letter-spacing:-.01em;padding:15px;border-radius:11px;border:1.5px solid var(--accent);
-  background:var(--accent);color:var(--on-accent);transition:filter .12s}
+  background:var(--accent);color:var(--on-accent);
+  transition:filter .12s,transform .1s}
 .btn:hover{filter:brightness(1.08)}
+.btn:active:not(:disabled){transform:scale(.985)}
 .btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .btn:disabled{opacity:.4;cursor:default}
 .btn.ghost{background:var(--paper);color:var(--ink);border-color:var(--rule)}
@@ -256,7 +302,11 @@ input[type=range]:focus-visible{outline:3px solid var(--accent);outline-offset:4
   box-shadow:0 1px 2px rgba(0,0,0,.07)}
 .tab:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
 
-.pane{flex:1;overflow-y:auto;max-height:420px;margin:0 -2px;padding:0 2px}
+/* Switching between the meals and the shopping list is the same instant swap
+   the screens used to be, so it gets the same treatment — shorter, because you
+   flick between these two far more often than you answer a question twice. */
+.pane{flex:1;overflow-y:auto;max-height:420px;margin:0 -2px;padding:0 2px;
+  animation:part-in .22s cubic-bezier(.22,.68,.28,1) both}
 /* A row sliced flat at the cap reads as the end of the list. Fade the last
    26px only while there is more below, so the real last row is never faded. */
 .pane.more{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent);
@@ -372,7 +422,7 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
   </header>
 
   <div class="cols">
-    <div class="phone">
+    <div class="phone" id="phone" data-dir="fwd">
       <div class="topbar">
         <button class="back" id="back" hidden aria-label="Go back">&larr;</button>
         <span class="lab" id="stepName">Where you shop</span>
@@ -927,16 +977,44 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
   }
 
   /* ---------- chrome ---------- */
+  /* Restart a CSS animation on an element that is already on screen. Reading
+     offsetWidth is the reflow that makes the browser notice the class went away
+     and came back; without it the two style changes coalesce and nothing runs. */
+  function replay(el){
+    el.style.animation = "none";
+    void el.offsetWidth;
+    el.style.animation = "";
+  }
+
+  var lastStep = null;
   function render(){
-    STEPS.forEach(function(s){ $("s-"+s).hidden = (s !== state.step); });
     var ix = STEPS.indexOf(state.step);
+    var moved = lastStep !== null && lastStep !== state.step;
+    var back = moved && STEPS.indexOf(lastStep) > ix;
+
+    // Which way the screen comes in from. A screen going from display:none to
+    // visible restarts its animation by itself, so only the direction is set
+    // here — the browser plays it.
+    $("phone").dataset.dir = back ? "back" : "fwd";
+    STEPS.forEach(function(s){ $("s-"+s).hidden = (s !== state.step); });
+
     $("back").hidden = ix === 0;
     $("stepName").textContent = STEP_NAMES[state.step];
     $("stepIdx").textContent = state.step === "building" ? "" : ix < 5 ? (ix+1) + " of 5"
       : (currentPlan() && currentPlan().status === "ok" ? "Solved" : "No fit");
+    // These two stay put across the swap, so they need telling to move again.
+    if (moved){ replay($("stepName")); replay($("stepIdx")); }
+    lastStep = state.step;
+
     $("rail").hidden = ix > 4;
-    $("rail").innerHTML = "<i class='" + ["","","","",""].map(function(_, i){
-      return i <= ix ? "on" : ""; }).join("'></i><i class='") + "'></i>";
+    // Built once, then toggled. Rewriting the innerHTML on every render replaced
+    // the segments with fresh elements, and a brand new element has no previous
+    // colour to transition from — the fill jumped instead of filling.
+    if ($("rail").children.length !== 5)
+      $("rail").innerHTML = "<i></i><i></i><i></i><i></i><i></i>";
+    [].forEach.call($("rail").children, function(seg, i){
+      seg.classList.toggle("on", i <= ix);
+    });
     renderStores(); renderDiets(); renderGoals(); renderDays(); renderBudget();
     if (state.step === "plan") renderPlan();
     $("paneMeals").hidden = state.tab !== "meals";

@@ -124,6 +124,7 @@ function budgetRange(floor: Floor | null, days: number): [number, number] {
 
 export function Planner() {
   const [step, setStep] = useState<Step>("store");
+  const [dir, setDir] = useState<"fwd" | "back">("fwd");
   const [store, setStore] = useState("aldi");
   const [days, setDays] = useState(7);
   const [goal, setGoal] = useState<GoalKey>("maintain");
@@ -161,6 +162,21 @@ export function Planner() {
   const [ticked, setTicked] = useState<Record<string, boolean>>({});
 
   const ix = STEPS.indexOf(step);
+
+  /**
+   * Go to a screen, remembering which way.
+   *
+   * The direction is the only thing the animation needs: the incoming screen
+   * slides in from the right on the way forward and from the left on the way
+   * back, so a mis-tap and the back arrow do not look like progress. It lives
+   * on the phone frame rather than on each screen so `Building` and
+   * `PlanScreen`, which render their own `.screen`, pick it up without being
+   * handed a prop they have nothing else to do with.
+   */
+  const go = (next: Step) => {
+    setDir(STEPS.indexOf(next) < ix ? "back" : "fwd");
+    setStep(next);
+  };
   const targets = GOALS[goal];
   const diet = useMemo(
     () => ({
@@ -303,7 +319,7 @@ export function Planner() {
     setBusy(true);
     setError(null);
     setTicked({});
-    setStep("building");
+    go("building");
     // Both have to finish: the solve, and the ten seconds the screen runs for.
     // A cached solve returns in milliseconds and a cold one can take most of a
     // minute, so whichever is slower decides — the screen never cuts a solve
@@ -319,16 +335,16 @@ export function Planner() {
       if (!res.ok || (data.status !== "ok" && data.status !== "infeasible")) {
         await shown;
         setError(detailOf(data));
-        setStep("goal");
+        go("goal");
         return;
       }
       await shown;
       setResult(data);
-      setStep("plan");
+      go("plan");
     } catch {
       await shown;
       setError("Could not reach the solver.");
-      setStep("goal");
+      go("goal");
     } finally {
       setBusy(false);
     }
@@ -342,15 +358,17 @@ export function Planner() {
   const blocked = count?.blocked ?? floor?.blocked ?? null;
 
   return (
-    <div className="phone">
+    <div className="phone" data-dir={dir}>
       <div className="topbar">
         {ix > 0 && (
-          <button className="back" onClick={() => setStep(STEPS[ix - 1])} aria-label="Go back">
+          <button className="back" onClick={() => go(STEPS[ix - 1])} aria-label="Go back">
             ←
           </button>
         )}
-        <span className="lab">{STEP_NAMES[step]}</span>
-        <span className="idx">
+        <span className="lab" key={`lab-${step}`}>
+          {STEP_NAMES[step]}
+        </span>
+        <span className="idx" key={`idx-${step}`}>
           {ix <= LAST_QUESTION
             ? `${ix + 1} of ${LAST_QUESTION + 1}`
             : step === "building"
@@ -374,7 +392,7 @@ export function Planner() {
           q="Where do you shop?"
           sub="We'll plan the whole shop around it."
           cta="Continue"
-          onNext={() => setStep("kitchen")}
+          onNext={() => go("kitchen")}
         >
           <div className="tiles">
             {ALL_STORES.map((s) => (
@@ -404,7 +422,7 @@ export function Planner() {
           q="What can you cook with?"
           sub="Leave it blank if you have the lot."
           cta="Continue"
-          onNext={() => setStep("cupboard")}
+          onNext={() => go("cupboard")}
         >
           <TileGrid
             tiles={APPLIANCES}
@@ -421,7 +439,7 @@ export function Planner() {
           q="What's already in?"
           sub="Tap anything you've got. It gets planned around, not bought again."
           cta={inCupboard.length ? "Continue" : "Nothing yet"}
-          onNext={() => setStep("eat")}
+          onNext={() => go("eat")}
         >
           {catalogue === null ? (
             <div className="counter">
@@ -459,7 +477,7 @@ export function Planner() {
           q="Anything you don't eat?"
           sub="Tap what to leave out."
           cta="Continue"
-          onNext={() => setStep("allergies")}
+          onNext={() => go("allergies")}
         >
           <TileGrid
             tiles={PROTEINS}
@@ -480,7 +498,7 @@ export function Planner() {
           q="Any allergies?"
           sub="Nothing tapped means none."
           cta="Continue"
-          onNext={() => setStep("style")}
+          onNext={() => go("style")}
         >
           <TileGrid
             tiles={ALLERGENS}
@@ -504,7 +522,7 @@ export function Planner() {
           q="What are you in the mood for?"
           sub="Pick any, or none for everything."
           cta="Continue"
-          onNext={() => setStep("days")}
+          onNext={() => go("days")}
         >
           <TileGrid
             tiles={STYLES}
@@ -516,7 +534,7 @@ export function Planner() {
       )}
 
       {step === "days" && (
-        <Screen eyebrow={`Step 7 of ${LAST_QUESTION + 1}`} q="How long for?" cta="Continue" onNext={() => setStep("budget")}>
+        <Screen eyebrow={`Step 7 of ${LAST_QUESTION + 1}`} q="How long for?" cta="Continue" onNext={() => go("budget")}>
           <div className="readout">
             <span className="tik big">
               {days % 7 === 0
@@ -561,7 +579,7 @@ export function Planner() {
           eyebrow={`Step 8 of ${LAST_QUESTION + 1}`}
           q="What's the budget?"
           cta="Continue"
-          onNext={() => setStep("goal")}
+          onNext={() => go("goal")}
         >
           <div className="readout">
             <span className="tik big">{money(budget).replace(/\.00$/, "")}</span>
@@ -646,11 +664,11 @@ export function Planner() {
             setBudgetAt(
               Math.min(1, Math.max(0, (Math.ceil(b) - budgetLo) / (budgetHi - budgetLo))),
             );
-            setStep("budget");
+            go("budget");
           }}
           onRestart={() => {
             setResult(null);
-            setStep("store");
+            go("store");
           }}
         />
       )}
@@ -1157,7 +1175,7 @@ function PlanScreen({
       </div>
 
       {tab === "food" ? (
-        <Scroller label="The meals in this plan">
+        <Scroller key="food" label="The meals in this plan">
           {meals.map((m) => {
             let head = null;
             if (!seen.has(m.slot)) {
@@ -1207,7 +1225,7 @@ function PlanScreen({
           </p>
         </Scroller>
       ) : (
-        <Scroller label="The shopping list">
+        <Scroller key="shop" label="The shopping list">
           {[...byAisle.entries()]
             .sort(([a], [b]) => a.localeCompare(b))
             .map(([aisle, lines]) => (
