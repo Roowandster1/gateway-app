@@ -153,29 +153,36 @@ body{background:var(--board);color:var(--ink);font-family:var(--sans);
   margin:4px 0 2px}
 .readout .big{font-size:52px}
 .readout .rt{text-align:right;padding-bottom:5px}
-.track{position:relative;padding:14px 0 4px}
+.track{position:relative;padding:16px 0 4px}
+/* A thick track and a big thumb, driven at a fine step so the thumb travels with
+   the finger instead of hopping between a handful of stops. The old budget
+   slider had 19 positions and the length slider 6, which is what made dragging
+   feel like it was catching. */
 input[type=range]{-webkit-appearance:none;appearance:none;width:100%;background:transparent;
-  cursor:pointer;margin:0;display:block;height:30px}
-input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:99px;
+  cursor:pointer;margin:0;display:block;height:44px}
+input[type=range]::-webkit-slider-runnable-track{height:14px;border-radius:99px;
   background:linear-gradient(to right,var(--accent) var(--pct,50%),var(--rule) var(--pct,50%))}
-input[type=range]::-moz-range-track{height:8px;border-radius:99px;background:var(--rule)}
-input[type=range]::-moz-range-progress{height:8px;border-radius:99px;background:var(--accent)}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;
-  border-radius:50%;background:var(--paper);border:2.5px solid var(--accent);margin-top:-10px;
-  box-shadow:0 1px 4px rgba(0,0,0,.16)}
-input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;
-  background:var(--paper);border:2.5px solid var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.16)}
+input[type=range]::-moz-range-track{height:14px;border-radius:99px;background:var(--rule)}
+input[type=range]::-moz-range-progress{height:14px;border-radius:99px;background:var(--accent)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:34px;height:34px;
+  border-radius:50%;background:var(--paper);border:3px solid var(--accent);margin-top:-10px;
+  box-shadow:0 2px 6px rgba(0,0,0,.18)}
+input[type=range]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;
+  background:var(--paper);border:3px solid var(--accent);box-shadow:0 2px 6px rgba(0,0,0,.18)}
+input[type=range]:active::-webkit-slider-thumb{transform:scale(1.06)}
 input[type=range]:focus-visible{outline:3px solid var(--accent);outline-offset:4px;
   border-radius:99px}
 /* The floor is a real, solved number, so it is marked on the track rather than
    left as a sentence underneath. */
-.floorpin{position:absolute;top:14px;height:30px;width:2px;background:var(--ink);
-  opacity:.5;pointer-events:none;transform:translateX(-1px)}
-.floorpin b{position:absolute;top:-13px;left:50%;transform:translateX(-50%);
+.floorpin{position:absolute;top:21px;height:34px;width:2px;background:var(--ink);
+  opacity:.45;pointer-events:none;transform:translateX(-1px)}
+.floorpin b{position:absolute;top:-15px;left:50%;transform:translateX(-50%);
   font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;white-space:nowrap;
   color:var(--ink-2);font-weight:500}
 .scale{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;
   color:var(--ink-2);margin-top:2px}
+.snap{font-family:var(--mono);font-size:10.5px;letter-spacing:.02em;color:var(--ink-2);
+  margin:8px 0 0}
 
 .floormark{margin-top:14px;padding:10px 12px;border-radius:10px;font-size:12.5px;
   background:var(--paper-2);color:var(--ink-2);line-height:1.5}
@@ -386,7 +393,7 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
           <span class="rt lab" id="daysSub"></span>
         </div>
         <div class="track">
-          <input type="range" id="daysRange" min="0" max="5" step="1" value="4"
+          <input type="range" id="daysRange" min="1" max="14" step="1" value="7"
                  aria-label="Plan length">
         </div>
         <div class="scale"><span>1 day</span><span>2 weeks</span></div>
@@ -402,10 +409,11 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
           <span class="rt lab" id="budgetSub"></span>
         </div>
         <div class="track" id="budgetTrack">
-          <input type="range" id="budgetRange" min="0" max="12" step="1" value="6"
+          <input type="range" id="budgetRange" min="12" max="84" step="1" value="35"
                  aria-label="Budget">
         </div>
         <div class="scale" id="budgetScale"></div>
+        <p class="snap" id="budgetSnap"></p>
         <div class="floormark" id="floorMark"></div>
         <div class="cta"><button class="btn" data-next="goal">Continue</button></div>
       </section>
@@ -503,7 +511,7 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
     RAW[p[1] + "|" + parseFloat(p[4])] = p[4];
   });
 
-  var state = {store:"aldi", days:7, budgetIx:4, goal:"maintain", diet:"any",
+  var state = {store:"aldi", days:7, budgetGBP:35, goal:"maintain", diet:"any",
                step:"store", tab:"meals", ticked:{}};
 
   var $ = function(id){ return document.getElementById(id); };
@@ -532,7 +540,22 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
 
   /* ---------- derived ---------- */
   function stops(){ return DATA.budgets[String(state.days)]; }
-  function budget(){ var l = stops(); return l[Math.min(state.budgetIx, l.length-1)]; }
+  /** The solved stop nearest what the slider is showing. */
+  function budget(){
+    var l = stops(), best = l[0];
+    for (var i = 1; i < l.length; i++){
+      if (Math.abs(l[i] - state.budgetGBP) < Math.abs(best - state.budgetGBP)) best = l[i];
+    }
+    return best;
+  }
+  /** The solved duration nearest what the slider is showing. */
+  function nearestDay(v){
+    var best = DAYS[0];
+    for (var i = 1; i < DAYS.length; i++){
+      if (Math.abs(DAYS[i] - v) < Math.abs(best - v)) best = DAYS[i];
+    }
+    return best;
+  }
   function periodWord(){
     return state.days === 7 ? "week" : state.days === 14 ? "fortnight"
          : state.days === 1 ? "day" : state.days + " days";
@@ -587,10 +610,11 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
 
   /* ---------- step 3: length ---------- */
   function renderDays(){
-    var d = state.days, ix = DAYS.indexOf(d);
+    var d = state.days;
     var r = $("daysRange");
-    r.max = String(DAYS.length - 1);
-    r.value = String(ix < 0 ? 0 : ix);
+    // The thumb travels every day from 1 to 14 so dragging is continuous; the
+    // plan lands on the nearest duration the export actually solved. Snapping
+    // the value but not the thumb is what makes it glide.
     fill(r);
     $("daysRead").textContent = d % 7 === 0 ? (d/7) + (d === 7 ? " week" : " weeks")
                                             : d + (d === 1 ? " day" : " days");
@@ -606,10 +630,16 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
   function renderBudget(){
     var list = stops(), b = budget(), floor = floorFor();
     var r = $("budgetRange");
-    r.max = String(list.length - 1);
-    r.value = String(Math.min(state.budgetIx, list.length - 1));
+    // £1 a step across the solved range, rather than one step per solved plan:
+    // nine positions across seventy pounds is an eight-pound lurch per step.
+    r.min = String(Math.round(list[0]));
+    r.max = String(Math.round(list[list.length - 1]));
     fill(r);
     $("budgetRead").textContent = money(b).replace(/\.00$/, "");
+    var note = $("budgetSnap");
+    if (note) note.textContent = Math.abs(b - state.budgetGBP) >= 0.51
+      ? "Demo solves " + list.length + " budgets per length; showing the nearest."
+      : "";
     $("budgetSub").innerHTML = "For one<br>at " + esc(STORE_NAMES[state.store])
       + "<br>" + (state.days === 1 ? "1 day" : plural(state.days, "day"));
     $("budgetScale").innerHTML = "<span>" + money(list[0]).replace(/\.00$/,"") + "</span>"
@@ -887,12 +917,16 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
     state.step = "store"; state.ticked = {}; render();
   });
   $("daysRange").addEventListener("input", function(e){
-    state.days = DAYS[+e.target.value];
-    state.budgetIx = Math.min(state.budgetIx, stops().length - 1);
-    state.ticked = {}; render();
+    fill(e.target);                       // repaint the fill on every pixel
+    var d = nearestDay(+e.target.value);
+    if (d === state.days) return;         // thumb moved, plan did not
+    state.days = d; state.ticked = {}; render();
   });
   $("budgetRange").addEventListener("input", function(e){
-    state.budgetIx = +e.target.value; state.ticked = {}; render();
+    fill(e.target);
+    var v = +e.target.value;
+    if (v === state.budgetGBP) return;
+    state.budgetGBP = v; state.ticked = {}; render();
   });
   $("tabMeals").addEventListener("click", function(){ state.tab="meals"; render(); });
   $("tabShop").addEventListener("click", function(){ state.tab="shop"; render(); });

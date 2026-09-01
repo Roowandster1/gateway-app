@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CostSplit } from "@/components/CostSplit";
-import { DAY_STOPS, GOALS, GOAL_ORDER, type GoalKey } from "@/lib/goals";
+import { GOALS, GOAL_ORDER, type GoalKey } from "@/lib/goals";
 import {
   ALLERGENS,
   ALL_STORES,
@@ -94,16 +94,20 @@ function qty(q: number, unit: string) {
 }
 
 /**
- * 19 budget stops spanning the measured floor: half of it to two and a half
- * times it, so the floor always sits inside the range and a budget well below
- * it is reachable. Before the floor lands, days x £4 is a placeholder.
+ * The budget slider's range, in whole pounds.
+ *
+ * It used to be 19 fixed stops, which is why dragging it snapped: nineteen
+ * positions across forty pounds is a two-pound jump per step. The solver takes
+ * any number, so the slider does too — £1 steps across the range, which is
+ * sixty-odd positions and travels with your finger.
+ *
+ * Half the measured floor to two and a half times it, so the floor always sits
+ * inside the range and a budget well below it stays reachable. Before the floor
+ * lands, days x £4 is a placeholder.
  */
-function budgetStops(floor: Floor | null, days: number): number[] {
+function budgetRange(floor: Floor | null, days: number): [number, number] {
   const base = floor?.first ?? days * 4;
-  const lo = Math.max(3, Math.round(base * 0.5));
-  const hi = Math.round(base * 2.5);
-  const step = (hi - lo) / 18;
-  return Array.from({ length: 19 }, (_, i) => Math.round((lo + step * i) * 4) / 4);
+  return [Math.max(3, Math.round(base * 0.5)), Math.round(base * 2.5)];
 }
 
 export function Planner() {
@@ -130,7 +134,7 @@ export function Planner() {
   // range started at £25 and implied that was the minimum; it now runs from
   // half the floor to two and a half times it, so a small budget is reachable
   // and simply comes back as infeasible with the real number attached.
-  const [budgetIx, setBudgetIx] = useState(9);
+  const [budgetAt, setBudgetAt] = useState(0.5);
   // `value: null` means the request was made and the solver could not answer.
   // That is a different state from "not asked yet" and the UI must not show
   // the same "working it out…" line for both.
@@ -175,8 +179,10 @@ export function Planner() {
   const floor = floorEntry?.value ?? null;
   const floorUnavailable = floorEntry !== null && floorEntry.value === null;
 
-  const stops = useMemo(() => budgetStops(floor, days), [floor, days]);
-  const budget = stops[Math.min(budgetIx, stops.length - 1)];
+  const [budgetLo, budgetHi] = useMemo(() => budgetRange(floor, days), [floor, days]);
+  // Held as a fraction of the range so it survives the range moving under it
+  // when the floor arrives or the length changes.
+  const budget = Math.round(budgetLo + budgetAt * (budgetHi - budgetLo));
 
   const body = useCallback(
     (over: Record<string, unknown> = {}) => ({
@@ -494,12 +500,16 @@ export function Planner() {
               for one
             </span>
           </div>
+          {/* Every day from one to a fortnight. Six named stops was an
+              invention — the solver accepts any length in that range, so
+              there was never a reason to offer only six. */}
           <Slider
-            max={DAY_STOPS.length - 1}
-            value={DAY_STOPS.indexOf(days)}
+            min={1}
+            max={14}
+            value={days}
             label="Plan length"
-            onChange={(i) => {
-              setDays(DAY_STOPS[i]);
+            onChange={(v) => {
+              setDays(v);
               setTicked({});
             }}
           />
@@ -535,24 +545,23 @@ export function Planner() {
             </span>
           </div>
           <Slider
-            max={stops.length - 1}
-            value={Math.min(budgetIx, stops.length - 1)}
+            min={budgetLo}
+            max={budgetHi}
+            value={budget}
             label="Budget"
             floorPct={
-              floor?.first != null &&
-              floor.first > stops[0] &&
-              floor.first < stops[stops.length - 1]
-                ? (floor.first - stops[0]) / (stops[stops.length - 1] - stops[0])
+              floor?.first != null && floor.first > budgetLo && floor.first < budgetHi
+                ? (floor.first - budgetLo) / (budgetHi - budgetLo)
                 : null
             }
-            onChange={(i) => {
-              setBudgetIx(i);
+            onChange={(v) => {
+              setBudgetAt((v - budgetLo) / (budgetHi - budgetLo));
               setTicked({});
             }}
           />
           <div className="scale">
-            <span>{money(stops[0]).replace(/\.00$/, "")}</span>
-            <span>{money(stops[stops.length - 1]).replace(/\.00$/, "")}</span>
+            <span>£{budgetLo}</span>
+            <span>£{budgetHi}</span>
           </div>
           <FloorNote
             floor={floor}
@@ -603,8 +612,9 @@ export function Planner() {
           ticked={ticked}
           setTicked={setTicked}
           onUseFloor={(b) => {
-            const i = stops.findIndex((s) => s >= b);
-            setBudgetIx(i < 0 ? stops.length - 1 : i);
+            setBudgetAt(
+              Math.min(1, Math.max(0, (Math.ceil(b) - budgetLo) / (budgetHi - budgetLo))),
+            );
             setStep("budget");
           }}
           onRestart={() => {
@@ -797,24 +807,26 @@ function Choice({
  * in a sentence underneath.
  */
 function Slider({
+  min = 0,
   max,
   value,
   label,
   onChange,
   floorPct,
 }: {
+  min?: number;
   max: number;
   value: number;
   label: string;
-  onChange: (i: number) => void;
+  onChange: (v: number) => void;
   floorPct?: number | null;
 }) {
-  const pct = max > 0 ? (value / max) * 100 : 0;
+  const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
   return (
     <div className="track">
       <input
         type="range"
-        min={0}
+        min={min}
         max={max}
         step={1}
         value={value}
@@ -825,9 +837,9 @@ function Slider({
       {floorPct != null && (
         <span
           className="floorpin"
-          // The thumb is 28px, so the usable track is inset by half a thumb at
+          // The thumb is 34px, so the usable track is inset by half a thumb at
           // each end; the pin has to sit in that same space to line up.
-          style={{ left: `calc(14px + ${floorPct} * (100% - 28px))` }}
+          style={{ left: `calc(17px + ${floorPct} * (100% - 34px))` }}
         >
           <b>floor</b>
         </span>

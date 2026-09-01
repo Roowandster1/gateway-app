@@ -56,7 +56,14 @@ DAYS = [1, 3, 7, 14]
 STOPS = 9
 # Per-duration slider range. Wide enough that the floor sits inside it for every
 # goal, so the "not possible below X" state is reachable and so is comfortable.
-SPAN = {1: (3, 27), 3: (7, 55), 7: (12, 84), 14: (25, 145)}
+# Low ends sit well under the cheapest week any preset produces, so a budget
+# below the floor is always reachable and comes back as a real infeasible answer
+# with the real number attached. These were calibrated against the 24-recipe
+# catalogue and went stale when generating recipes dropped the floors by half:
+# a fortnight's range started at £25 while the floor had fallen to £17.44, which
+# is the "the minimum is £25 but people get by on less" complaint returning by
+# the back door. Re-check them whenever the catalogue changes.
+SPAN = {1: (1, 27), 3: (2, 55), 7: (4, 84), 14: (7, 145)}
 
 
 def budgets_for(days):

@@ -43,4 +43,10 @@ export const STORES = [
   { slug: "tesco", name: "Tesco" },
 ] as const;
 
-export const DAY_STOPS = [1, 2, 3, 5, 7, 14];
+/**
+ * Retired. The length slider now runs every day from 1 to 14, because the
+ * solver accepts any length in that range and six named stops was an invention
+ * that made dragging snap. Kept only for the demo's export grid, which does
+ * carry a fixed set of durations.
+ */
+export const DAY_STOPS = [1, 3, 7, 14];
