@@ -94,6 +94,53 @@ def health():
     }
 
 
+@app.get("/items")
+def items_for(store: str = "aldi"):
+    """
+    The priced catalogue, for the cupboard screen.
+
+    `carries` marks the staples — the things a returning user genuinely still
+    has. Fresh chicken does not belong on a "what's already in?" list, and
+    offering it would collect an answer the solver should not believe.
+    """
+    try:
+        items, _, _ = load(store)
+    except ValueError as e:
+        return JSONResponse(status_code=404, content={"status": "error", "detail": str(e)})
+    return {"store": store, "items": [
+        {"slug": i.slug, "name": i.name, "aisle": i.aisle, "unit": i.unit,
+         "pack_size": i.pack_size, "price": i.price,
+         "carries": i.keeps == "staple"}
+        for i in sorted(items.values(), key=lambda i: (i.aisle, i.name))]}
+
+
+@app.get("/methods")
+def methods():
+    """
+    Cooking steps, keyed by recipe.
+
+    The one thing CLAUDE.md rule 1 lets a language model write, and every step
+    has been through method_check.py — which rejects any step that states a
+    quantity or names an ingredient the recipe does not contain. Amounts live in
+    the shopping list, where the solver put them.
+    """
+    import psycopg
+
+    with psycopg.connect(config.DATABASE_URL) as conn:
+        rows = conn.execute(
+            "SELECT slug, method_md FROM recipe WHERE method_md IS NOT NULL"
+        ).fetchall()
+    out = {}
+    for slug, md in rows:
+        head, _, rest = md.partition("\n\n")
+        out[slug] = {
+            "summary": head.strip(),
+            "steps": [ln.split(". ", 1)[1] for ln in rest.strip().splitlines()
+                      if ". " in ln],
+        }
+    return {"methods": out, "with_steps": len(out)}
+
+
 @app.post("/filters")
 def filters_only(req: SolveRequest):
     """

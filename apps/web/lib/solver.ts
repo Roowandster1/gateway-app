@@ -138,6 +138,36 @@ export interface FilterCount {
   blocked: string | null;
 }
 
+/** One priced item, for the cupboard screen. */
+export interface CatalogueItem {
+  slug: string;
+  name: string;
+  aisle: string;
+  unit: "g" | "ml" | "unit";
+  pack_size: number;
+  price: number;
+  /** True for staples — the things a returning shopper genuinely still has. */
+  carries: boolean;
+}
+
+export interface Method {
+  summary: string;
+  steps: string[];
+}
+
+async function get<T>(path: string): Promise<T> {
+  const res = await fetch(`${SOLVER_URL}${path}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`solver ${path} returned ${res.status}`);
+  return (await res.json()) as T;
+}
+
+export const catalogueItems = (store: string) =>
+  get<{ store: string; items: CatalogueItem[] }>(
+    `/items?store=${encodeURIComponent(store)}`,
+  );
+export const recipeMethods = () =>
+  get<{ methods: Record<string, Method>; with_steps: number }>("/methods");
+
 export const solve = (req: SolveRequest) => post<SolveResult>("/solve", req);
 export const floor = (req: SolveRequest) => post<Floor>("/floor", req);
 export const filtersOnly = (req: SolveRequest) => post<FilterCount>("/filters", req);

@@ -16,11 +16,20 @@ import {
   type Style,
   type Tile,
 } from "@/lib/diet";
-import type { FilterCount, Floor, Plan, SolveResult, SolverError } from "@/lib/solver";
+import type {
+  CatalogueItem,
+  FilterCount,
+  Floor,
+  Method,
+  Plan,
+  SolveResult,
+  SolverError,
+} from "@/lib/solver";
 
 const STEPS = [
   "store",
   "kitchen",
+  "cupboard",
   "eat",
   "allergies",
   "style",
@@ -35,6 +44,7 @@ const LAST_QUESTION = STEPS.length - 2;
 const STEP_NAMES: Record<Step, string> = {
   store: "Where you shop",
   kitchen: "Your kitchen",
+  cupboard: "Your cupboard",
   eat: "What you eat",
   allergies: "Allergies",
   style: "Your style",
@@ -109,6 +119,13 @@ export function Planner() {
   const [avoidProteins, setAvoidProteins] = useState<Protein[]>([]);
   const [avoidAllergens, setAvoidAllergens] = useState<Allergen[]>([]);
   const [styles, setStyles] = useState<Style[]>([]);
+  // What is already in the house. The solver has always accepted a pantry —
+  // free stock it plans around — but nothing ever collected one, so every user
+  // was treated as someone who has never shopped. This is the retention
+  // mechanic in CLAUDE.md finally having an input.
+  const [inCupboard, setInCupboard] = useState<string[]>([]);
+  const [catalogue, setCatalogue] = useState<CatalogueItem[] | null>(null);
+  const [methods, setMethods] = useState<Record<string, Method>>({});
   // A slider, with the measured floor pinned on the track. The old build's
   // range started at £25 and implied that was the minimum; it now runs from
   // half the floor to two and a half times it, so a small budget is reachable
@@ -138,10 +155,22 @@ export function Planner() {
     }),
     [avoidAllergens, appliances, avoidProteins, styles],
   );
+
+  // A ticked cupboard item counts as one full pack. That is an assumption, not
+  // a measurement, so the screen says so — a part-used bag is the common case
+  // and the ledger that tracks real amounts is still to come.
+  const pantry = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const slug of inCupboard) {
+      const item = catalogue?.find((i) => i.slug === slug);
+      if (item) out[slug] = item.pack_size;
+    }
+    return out;
+  }, [inCupboard, catalogue]);
   // The floor depends on the filters too — a vegetarian week has a different
   // cheapest shop — so they belong in the key that makes a stored floor stale.
   const countKey = `${store}|${JSON.stringify(diet)}`;
-  const floorKey = `${store}|${days}|${goal}|${JSON.stringify(diet)}`;
+  const floorKey = `${store}|${days}|${goal}|${JSON.stringify(diet)}|${inCupboard.join()}`;
   const floorEntry = floorFor?.key === floorKey ? floorFor : null;
   const floor = floorEntry?.value ?? null;
   const floorUnavailable = floorEntry !== null && floorEntry.value === null;
@@ -156,11 +185,38 @@ export function Planner() {
       budget,
       min_protein_per_day: targets.protein,
       kcal_band: targets.kcal,
+      pantry,
       ...diet,
       ...over,
     }),
-    [store, days, budget, targets, diet],
+    [store, days, budget, targets, diet, pantry],
   );
+
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/items?store=${encodeURIComponent(store)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((v) => {
+        if (live && v?.items) setCatalogue(v.items as CatalogueItem[]);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [store]);
+
+  useEffect(() => {
+    let live = true;
+    fetch("/api/methods")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((v) => {
+        if (live && v?.methods) setMethods(v.methods as Record<string, Method>);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
 
   // The recipe counter on every filter screen. This costs nothing — it is a set
   // intersection, not a solve — so it can run on every tap.
@@ -197,6 +253,7 @@ export function Planner() {
         budget: 999,
         min_protein_per_day: targets.protein,
         kcal_band: targets.kcal,
+        pantry,
         ...diet,
       }),
     })
@@ -222,7 +279,7 @@ export function Planner() {
     return () => {
       live = false;
     };
-  }, [floorKey, store, days, targets, diet, ix]);
+  }, [floorKey, store, days, targets, diet, ix, pantry]);
 
   async function buildPlan() {
     setBusy(true);
@@ -312,7 +369,7 @@ export function Planner() {
           q="What can you cook with?"
           sub="Leave it blank if you have the lot."
           cta="Continue"
-          onNext={() => setStep("eat")}
+          onNext={() => setStep("cupboard")}
         >
           <TileGrid
             tiles={APPLIANCES}
@@ -323,9 +380,47 @@ export function Planner() {
         </Screen>
       )}
 
-      {step === "eat" && (
+      {step === "cupboard" && (
         <Screen
           eyebrow={`Step 3 of ${LAST_QUESTION + 1}`}
+          q="What's already in?"
+          sub="Tap anything you've got. It gets planned around, not bought again."
+          cta={inCupboard.length ? "Continue" : "Nothing yet"}
+          onNext={() => setStep("eat")}
+        >
+          {catalogue === null ? (
+            <div className="counter">
+              <span>Loading the cupboard…</span>
+            </div>
+          ) : (
+            <div className="tiles">
+              {catalogue
+                .filter((i) => i.carries)
+                .map((i, n) => (
+                  <button
+                    key={i.slug}
+                    className={`tile c${(n % 9) + 1}`}
+                    aria-pressed={inCupboard.includes(i.slug)}
+                    onClick={() => setInCupboard(toggle(inCupboard, i.slug))}
+                  >
+                    <span className="t">{i.name}</span>
+                    <span className="s">{money(i.price)} a pack</span>
+                  </button>
+                ))}
+            </div>
+          )}
+          <p className="caveat">
+            Only things that keep are listed — fresh chicken is not something you
+            still have. A tap counts as <b>one full pack</b>, which is an
+            assumption, not a measurement: a part-used bag is the usual case, and
+            tracking real amounts is the next job.
+          </p>
+        </Screen>
+      )}
+
+      {step === "eat" && (
+        <Screen
+          eyebrow={`Step 4 of ${LAST_QUESTION + 1}`}
           q="Anything you don't eat?"
           sub="Tap what to leave out."
           cta="Continue"
@@ -346,7 +441,7 @@ export function Planner() {
 
       {step === "allergies" && (
         <Screen
-          eyebrow={`Step 4 of ${LAST_QUESTION + 1}`}
+          eyebrow={`Step 5 of ${LAST_QUESTION + 1}`}
           q="Any allergies?"
           sub="Nothing tapped means none."
           cta="Continue"
@@ -370,7 +465,7 @@ export function Planner() {
 
       {step === "style" && (
         <Screen
-          eyebrow={`Step 5 of ${LAST_QUESTION + 1}`}
+          eyebrow={`Step 6 of ${LAST_QUESTION + 1}`}
           q="What are you in the mood for?"
           sub="Pick any, or none for everything."
           cta="Continue"
@@ -386,7 +481,7 @@ export function Planner() {
       )}
 
       {step === "days" && (
-        <Screen eyebrow={`Step 6 of ${LAST_QUESTION + 1}`} q="How long for?" cta="Continue" onNext={() => setStep("budget")}>
+        <Screen eyebrow={`Step 7 of ${LAST_QUESTION + 1}`} q="How long for?" cta="Continue" onNext={() => setStep("budget")}>
           <div className="readout">
             <span className="tik big">
               {days % 7 === 0
@@ -424,7 +519,7 @@ export function Planner() {
 
       {step === "budget" && (
         <Screen
-          eyebrow={`Step 7 of ${LAST_QUESTION + 1}`}
+          eyebrow={`Step 8 of ${LAST_QUESTION + 1}`}
           q="What's the budget?"
           cta="Continue"
           onNext={() => setStep("goal")}
@@ -471,7 +566,7 @@ export function Planner() {
 
       {step === "goal" && (
         <Screen
-          eyebrow={`Step 8 of ${LAST_QUESTION + 1}`}
+          eyebrow={`Step 9 of ${LAST_QUESTION + 1}`}
           q="What are you eating for?"
           cta={busy ? "Solving…" : "Build the plan"}
           disabled={busy}
@@ -501,6 +596,7 @@ export function Planner() {
       {step === "plan" && (
         <PlanScreen
           result={result}
+          methods={methods}
           days={days}
           tab={tab}
           setTab={setTab}
@@ -600,6 +696,42 @@ function TileGrid<T extends string>({
  * and finding that out four screens later is a dead end. This says it as it
  * happens, and turns red with the real reason when the slot is already gone.
  */
+/**
+ * How to cook it.
+ *
+ * The steps are the one thing CLAUDE.md rule 1 lets a language model write, and
+ * every one has been through method_check.py — which rejects any step that
+ * states a quantity or names an ingredient the recipe does not contain. Amounts
+ * are deliberately absent: they come from the solver and live in the shopping
+ * list, where they can be trusted.
+ */
+function Recipe({ method }: { method?: Method }) {
+  if (!method) {
+    return (
+      <div className="method">
+        <p className="desc">
+          No steps written for this one yet. It is one of the generated recipes —
+          the shopping list still has the exact amounts.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="method">
+      <p className="desc">{method.summary}</p>
+      <ol>
+        {method.steps.map((t, i) => (
+          <li key={i}>{t}</li>
+        ))}
+      </ol>
+      <p className="src">
+        No amounts in the steps — they come from the solver and live in the
+        shopping list.
+      </p>
+    </div>
+  );
+}
+
 function Counter({
   left,
   total,
@@ -800,6 +932,7 @@ function Scroller({ label, children }: { label: string; children: React.ReactNod
 
 function PlanScreen({
   result,
+  methods,
   days,
   tab,
   setTab,
@@ -809,6 +942,7 @@ function PlanScreen({
   onRestart,
 }: {
   result: SolveResult | null;
+  methods: Record<string, Method>;
   days: number;
   tab: "food" | "shop";
   setTab: (t: "food" | "shop") => void;
@@ -914,8 +1048,8 @@ function PlanScreen({
             return (
               <div key={m.recipe}>
                 {head}
-                <div className="meal">
-                  <div className="row">
+                <details className="meal">
+                  <summary>
                     {m.image_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img className="shot" src={m.image_url} alt="" loading="lazy" />
@@ -930,8 +1064,12 @@ function PlanScreen({
                       <br />
                       {m.minutes} min
                     </span>
-                  </div>
-                </div>
+                    <span className="chev" aria-hidden>
+                      ▶
+                    </span>
+                  </summary>
+                  <Recipe method={methods[m.recipe]} />
+                </details>
               </div>
             );
           })}
