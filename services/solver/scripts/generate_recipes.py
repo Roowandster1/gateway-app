@@ -48,7 +48,13 @@ from app.domain import Item  # noqa: E402
 BASES = {
     # No rice: no shape in LIGHT_ON takes it, so enumerating rice breakfasts
     # only to reject every one of them is work nobody reads.
-    "breakfast": ["oats", "bread", "tortilla", "potato", "yoghurt"],
+    #
+    # Eggs are here as well as in PROTEINS because a recipe gets exactly one
+    # protein, and "scrambled eggs with cheese" needs two. LIGHT_ON already
+    # says eggs may carry cheese, tomatoes, potato and milk; without eggs as a
+    # base the enumeration could not build a single one of those, which is how
+    # gluten-free breakfast ended up with three recipes for a fortnight.
+    "breakfast": ["oats", "bread", "tortilla", "potato", "yoghurt", "eggs"],
     "main": ["rice", "pasta", "noodles", "potato", "bread", "tortilla"],
     "snack": ["bread", "oats", "tortilla"],
 }
@@ -274,6 +280,11 @@ def build(items: dict[str, Item], slot: str, base: str | None, protein: str,
              (flavour, "flavour")]
     chosen = [(s, role) for s, role in parts if s]
     slugs = {s for s, _ in chosen}
+    # An item may fill one role, not two. Yoghurt is both a breakfast base and a
+    # breakfast protein, and without this it turned up as both at once —
+    # "Yoghurt & banana yoghurt", with yoghurt in the ingredient list twice.
+    if len(slugs) != len(chosen):
+        return None
     if len(slugs) < 2 or not plausible(slugs, slot):
         return None
 
@@ -342,6 +353,10 @@ NICE = {
 
 
 def name_for(items, slot, base, protein, veg, flavour) -> str:
+    # A light meal can have no separate protein — scrambled eggs, yoghurt and a
+    # banana — in which case the base is what the dish is called after.
+    if protein is None:
+        protein, base = base, None
     p = NICE.get(protein, protein)
     b = NICE.get(base, "") if base else ""
     v = NICE.get(veg, "") if veg else ""
@@ -390,6 +405,14 @@ def generate(items: dict[str, Item], cap: int = 3) -> list[Draft]:
     for slot in ("breakfast", "main", "snack"):
         bases = [None] + [b for b in BASES[slot] if b in items]
         proteins = [p for p in PROTEINS[slot] if p in items]
+        # A light meal may have no separate protein: scrambled eggs are eggs,
+        # milk and a pan, and yoghurt with banana is yoghurt and a banana. Both
+        # are the base carrying itself, which the one-role-per-item rule now
+        # forbids expressing as base=eggs, protein=eggs. Mains keep a required
+        # protein — a dinner of pasta and a carrot is not a dinner — and the
+        # slot's protein floor still rejects anything too thin to be a meal.
+        if slot in ("breakfast", "snack"):
+            proteins = [None] + proteins
         vegs = [None] + [v for v in VEG[slot] if v in items]
         flavours = [None] + [f for f in FLAVOUR[slot] if f in items]
         for base, prot, veg, flav in itertools.product(bases, proteins, vegs, flavours):
@@ -405,28 +428,40 @@ def generate(items: dict[str, Item], cap: int = 3) -> list[Draft]:
                         and (regular is None or large.kcal >= regular.kcal * 1.25)):
                     seen[large.key] = large
 
+    # Two recipes with the same name are one recipe as far as anyone reading a
+    # meal plan is concerned. The name template drops oil and stock, so
+    # oats+eggs and oats+eggs+oil both come out as "Egg porridge".
+    #
+    # This has to happen BEFORE the cap, not after. Capping first filled all
+    # three slots of the eggs-and-cheese shape with {cheese,eggs},
+    # {cheese,eggs,oil} and {cheese,eggs,milk} — three drafts that all render as
+    # "Cheese egg" — and the dedupe then collapsed them to one, so a cap of
+    # three yielded a single dish and "Cheese & tomato egg" never survived at
+    # all. Deduplicate first and the cap spends its three slots on three
+    # different dishes.
+    by_name: dict[str, Draft] = {}
+    for d in sorted(seen.values(), key=lambda d: (d.slot, len(d.ingredients), d.slug)):
+        by_name.setdefault(d.name, d)
+
     shapes: dict[tuple[str, str, str, bool], list[Draft]] = {}
-    for d in seen.values():
+    for d in by_name.values():
         shapes.setdefault(shape_of(d), []).append(d)
     kept: list[Draft] = []
     for group in shapes.values():
         group.sort(key=lambda d: (len(d.ingredients), d.slug))
         kept.extend(group[:cap])
-
-    # Two recipes with the same name are one recipe as far as anyone reading a
-    # meal plan is concerned. The name template drops oil and stock, so
-    # oats+eggs and oats+eggs+oil both came out as "Egg porridge" and the plan
-    # listed it twice.
-    by_name: dict[str, Draft] = {}
-    for d in sorted(kept, key=lambda d: (d.slot, len(d.ingredients), d.slug)):
-        by_name.setdefault(d.name, d)
-    return sorted(by_name.values(), key=lambda d: (d.slot, d.slug))
+    return sorted(kept, key=lambda d: (d.slot, d.slug))
 
 
 def shape_of(d: Draft) -> tuple[str, str, str, bool]:
     items_ = d.item_set
     base = next((b for b in BASES[d.slot] if b in items_), "-")
-    prot = next((p for p in PROTEINS[d.slot] if p in items_), "-")
+    # The protein cannot be the item already counted as the base. Eggs are both
+    # a breakfast base and a breakfast protein, and reading them as both put
+    # every egg breakfast — eggs and cheese, eggs and tomato, eggs and potato —
+    # into a single shape, where the cap kept three of twelve. That is how
+    # gluten-free breakfast came out with three recipes for a fortnight.
+    prot = next((p for p in PROTEINS[d.slot] if p in items_ and p != base), "-")
     return (d.slot, base, prot, d.big)
 
 
