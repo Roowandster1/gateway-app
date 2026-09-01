@@ -179,6 +179,10 @@ dark mode the shadow deepens rather than the surfaces glowing.
 - Don't style food photography as marketing. Overhead, plain crockery, natural
   light, no garnish. It should look like Tuesday.
 - Don't spend the accent on decoration. If everything is amber, nothing is.
+- Don't render a failed fetch as if it were data. A 502 body is not a `Floor`;
+  storing it put `undefined` where a number belonged and the budget screen died
+  on the first `money()` call. Narrow on the response's shape, then say the
+  solver is down in the place the number would have been.
 
 ---
 
@@ -189,7 +193,11 @@ The phone frame is `minmax(0, 400px)` above it and fluid below.
 
 Touch targets are at least 44px in the aisle — checkboxes get a full-row label,
 and the slider thumb is 26px. Scrollable panes are capped at 430px so the
-primary button stays visible without scrolling. `prefers-reduced-motion` kills
+primary button stays visible without scrolling. A capped pane fades its bottom
+26px **only while there is more below it**: a row sliced flat at the boundary
+reads as the end of the list, and a fade that never lifts makes the real last
+row look unfinished. The pane carries its own `tabIndex` and label so a keyboard
+can reach the scroll. `prefers-reduced-motion` kills
 every transition; the only animation is a 0.2s bar resize and a chevron rotate.
 
 ---

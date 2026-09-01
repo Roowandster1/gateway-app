@@ -81,6 +81,16 @@ export interface Floor {
   ongoing: number | null;
 }
 
+/**
+ * What a route handler returns when the solver service itself cannot answer.
+ * It is not a Plan and it is not a Floor: callers must narrow on `status`
+ * before reading any number off it.
+ */
+export interface SolverError {
+  status: "error";
+  detail: string;
+}
+
 export type SolveResult = Plan | Infeasible;
 
 const SOLVER_URL = process.env.SOLVER_URL ?? "http://127.0.0.1:8000";

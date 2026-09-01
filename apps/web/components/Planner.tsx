@@ -1,15 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CostSplit } from "@/components/CostSplit";
 import { DAY_STOPS, GOALS, GOAL_ORDER, STORES, type GoalKey } from "@/lib/goals";
-import type { Floor, Plan, SolveResult } from "@/lib/solver";
+import type { Floor, Plan, SolveResult, SolverError } from "@/lib/solver";
 
 const STEPS = ["store", "days", "budget", "goal", "plan"] as const;
 type Step = (typeof STEPS)[number];
 
 const money = (n: number) => `£${n.toFixed(2)}`;
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+
+/** The message the route handler sent, or a fallback if it sent nothing usable. */
+const detailOf = (v: unknown) =>
+  (typeof v === "object" && v !== null && typeof (v as SolverError).detail === "string"
+    ? (v as SolverError).detail
+    : "Could not reach the solver.");
 
 /** For "at the till, for {periodWord}". */
 function periodWord(days: number) {
@@ -54,7 +60,10 @@ export function Planner() {
   // The floor is stored with the request it belongs to, so switching store,
   // length or goal makes the previous answer stale by derivation rather than by
   // clearing state inside an effect (which cascades renders).
-  const [floorFor, setFloorFor] = useState<{ key: string; value: Floor } | null>(null);
+  // `value: null` means the request was made and the solver could not answer.
+  // That is a different state from "not asked yet" and the UI must not show
+  // the same "working it out…" line for both.
+  const [floorFor, setFloorFor] = useState<{ key: string; value: Floor | null } | null>(null);
   const [result, setResult] = useState<SolveResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +72,9 @@ export function Planner() {
 
   const targets = GOALS[goal];
   const floorKey = `${store}|${days}|${goal}`;
-  const floor = floorFor?.key === floorKey ? floorFor.value : null;
+  const floorEntry = floorFor?.key === floorKey ? floorFor : null;
+  const floor = floorEntry?.value ?? null;
+  const floorUnavailable = floorEntry !== null && floorEntry.value === null;
 
   const stops = useMemo(() => budgetStops(floor, days), [floor, days]);
   const budget = stops[Math.min(budgetIx, stops.length - 1)];
@@ -95,13 +106,25 @@ export function Planner() {
         kcal_band: targets.kcal,
       }),
     })
-      .then((r) => r.json())
-      .then((value: Floor) => {
+      .then(async (r) => ({ ok: r.ok, value: (await r.json()) as Floor | SolverError }))
+      .then(({ ok, value }) => {
         if (!live) return;
+        // A 502 body is shaped nothing like a Floor. Storing it anyway put
+        // `undefined` where a number belonged, and the budget screen died on
+        // the first money() call rather than saying the solver was down.
+        if (!ok || !("first" in value)) {
+          setFloorFor({ key: floorKey, value: null });
+          setError(detailOf(value));
+          return;
+        }
         setFloorFor({ key: floorKey, value });
         setError(null);
       })
-      .catch(() => live && setError("Could not reach the solver."));
+      .catch(() => {
+        if (!live) return;
+        setFloorFor({ key: floorKey, value: null });
+        setError("Could not reach the solver.");
+      });
     return () => {
       live = false;
     };
@@ -117,7 +140,11 @@ export function Planner() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body()),
       });
-      const data = (await res.json()) as SolveResult;
+      const data = (await res.json()) as SolveResult | SolverError;
+      if (!res.ok || (data.status !== "ok" && data.status !== "infeasible")) {
+        setError(detailOf(data));
+        return;
+      }
       setResult(data);
       setStep("plan");
     } catch {
@@ -232,7 +259,13 @@ export function Planner() {
               className="w-full my-3"
             />
             <Scale lo={money(stops[0])} hi={money(stops[stops.length - 1])} />
-            <FloorNote floor={floor} budget={budget} days={days} store={store} />
+            <FloorNote
+              floor={floor}
+              unavailable={floorUnavailable}
+              budget={budget}
+              days={days}
+              store={store}
+            />
           </Screen>
         )}
 
@@ -322,6 +355,57 @@ function Screen({
   );
 }
 
+/**
+ * The meal and shopping lists are taller than the card, so they scroll inside
+ * it. Left plain, the 430px boundary slices a row flat and reads as the end of
+ * the list — you cannot tell there is more. The bottom edge fades only while
+ * there actually is, so the last row is never faded for nothing.
+ *
+ * Measured on scroll and on mount rather than in an effect: the effect version
+ * of this sets state on every render pass and React flags it.
+ */
+function Scroller({ label, children }: { label: string; children: React.ReactNode }) {
+  const [more, setMore] = useState(false);
+  const el = useRef<HTMLDivElement | null>(null);
+
+  const measure = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    const v = node.scrollTop + node.clientHeight < node.scrollHeight - 2;
+    setMore((prev) => (prev === v ? prev : v));
+  }, []);
+
+  const attach = useCallback(
+    (node: HTMLDivElement | null) => {
+      el.current = node;
+      measure(node);
+    },
+    [measure],
+  );
+
+  return (
+    <div
+      ref={attach}
+      onScroll={(e) => measure(e.currentTarget)}
+      // A scrollable region is reachable by keyboard, so it needs a name and a
+      // tab stop of its own (WCAG 2.1.1).
+      tabIndex={0}
+      role="group"
+      aria-label={label}
+      className="flex-1 overflow-y-auto max-h-[430px] focus-visible:outline-2 focus-visible:outline-accent"
+      style={
+        more
+          ? {
+              maskImage: "linear-gradient(to bottom, #000 calc(100% - 26px), transparent)",
+              WebkitMaskImage: "linear-gradient(to bottom, #000 calc(100% - 26px), transparent)",
+            }
+          : undefined
+      }
+    >
+      {children}
+    </div>
+  );
+}
+
 function Choice({
   selected,
   onClick,
@@ -381,16 +465,26 @@ function Scale({ lo, hi }: { lo: string; hi: string }) {
 
 function FloorNote({
   floor,
+  unavailable,
   budget,
   days,
   store,
 }: {
   floor: Floor | null;
+  unavailable?: boolean;
   budget: number;
   days: number;
   store: string;
 }) {
   const name = STORES.find((s) => s.slug === store)?.name ?? store;
+  if (unavailable) {
+    return (
+      <p className="mt-4 px-3 py-2.5 rounded-lg text-[12.5px] bg-bad-bg border-l-[3px] border-bad text-bad">
+        The floor could not be worked out — the solver is not answering. Any number you
+        pick here is a guess until it does.
+      </p>
+    );
+  }
   if (!floor) {
     return <p className="mt-4 text-[12.5px] text-muted">Working out the floor…</p>;
   }
@@ -547,7 +641,7 @@ function PlanScreen({
       </div>
 
       {tab === "food" ? (
-        <div className="flex-1 overflow-y-auto max-h-[430px]">
+        <Scroller label="The meals in this plan">
           {meals.map((m) => {
             let head = null;
             if (!seen.has(m.slot)) {
@@ -594,9 +688,9 @@ function PlanScreen({
             {plan.protein_per_day.toFixed(0)}g protein and {plan.kcal_per_day.toFixed(0)} kcal
             a day, averaged over {days === 1 ? "the day" : plural(days, "day")}.
           </p>
-        </div>
+        </Scroller>
       ) : (
-        <div className="flex-1 overflow-y-auto max-h-[430px]">
+        <Scroller label="The shopping list">
           {[...byAisle.entries()]
             .sort(([a], [b]) => a.localeCompare(b))
             .map(([aisle, lines]) => (
@@ -659,7 +753,7 @@ function PlanScreen({
             Prices are seed estimates, <b>unverified</b>. Correcting one in the aisle writes
             a new price and re-solves.
           </p>
-        </div>
+        </Scroller>
       )}
 
       <div className="mt-auto pt-5">

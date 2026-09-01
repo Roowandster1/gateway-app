@@ -914,3 +914,60 @@ that was missing, including the parts learned the hard way:
 
 Next: this can be fed to Claude Design (claude.ai/design) to scaffold a fuller
 component kit, or used as-is as the guardrail for new screens.
+
+---
+
+## Session 15 — UX audit against `ui-ux-pro-max-skill`, and two real bugs
+
+The second design repo, `nextlevelbuilder/ui-ux-pro-max-skill`, ships a
+119-row guideline table. Its palette and font catalogues were **not** adopted —
+Till Total already has a validated palette and a deliberate anti-glossy stance,
+and swapping either would undo work that was measured. What is worth having is
+the 45 critical/high web rows used as an audit checklist against the running
+app, which is what this session did.
+
+**Already passing, verified in a real browser rather than asserted:** viewport
+meta and `lang="en-GB"`; text contrast (screen sub 5.58:1 at 13.5px, heading
+17.64:1 at 23px, choice detail 4.86:1 at 12.5px — all AA); smallest rendered
+text 11px and only on eyebrow labels; no horizontal overflow at 320/375/414px,
+nor at a 195px viewport (the 200%-zoom reflow case); a visible 2px focus ring on
+the first tab stop; no interactive target under 24px on any screen — the
+shopping-list checkbox is 15px but its target is the 308×63px row label.
+
+**One checklist item was a false positive.** The dish photos carry no intrinsic
+`width`/`height`, which the guideline flags for layout shift. Measured with every
+photo delayed 1.5s: **CLS 0.000**. Tailwind's `w-14 h-14` already reserves the
+box, and the no-photo case renders a same-sized placeholder. No change made —
+adding the attributes would have been cargo cult.
+
+**Two genuine bugs, both found by the audit walking the flow rather than by
+reading it:**
+
+1. *The app hard-crashed to an error boundary whenever the solver was down.*
+   `/api/floor` returns `{status:"error", detail}` with a 502, and the client
+   parsed that body straight into a `Floor`. `first` was then `undefined`, not
+   `null`, so the `floor.first === null` guard fell through to `money(undefined)`
+   → `Cannot read properties of undefined (reading 'toFixed')` → white screen.
+   Found because Postgres was not running in this container, which is exactly
+   the condition the code was worst at. Fixed at the boundary: a `SolverError`
+   type, narrowing on shape (`"first" in value`) before storing, and a third
+   state — *asked and failed* — distinct from *not asked yet*, so the budget
+   screen says "the floor could not be worked out… any number you pick here is a
+   guess" instead of "working out the floor…" forever. `buildPlan` had the same
+   class of bug: a 502 body would have been rendered as an infeasible plan with
+   every field undefined.
+
+2. *The meal and shopping lists were sliced flat at their 430px cap.* A row cut
+   mid-height reads as the end of the list — there was nothing to say more
+   existed. Both panes now go through a `Scroller` that fades its bottom 26px
+   **only while there is more below**, and carries a `tabIndex` and label so a
+   keyboard can reach the scroll (WCAG 2.1.1). Measured on scroll, not in an
+   effect, because the effect version trips `react-hooks/set-state-in-effect`.
+
+Both lessons are written into `DESIGN.md` §7 and §8 so the next screen inherits
+them. `next build`, `eslint` and `tsc` clean; 40 solver tests pass.
+
+Still open, unchanged: **the receipt test** (SPEC §6, the gate on P2 — 28 seed
+prices, none yet checked against a till, `RECEIPTS.md` still empty), persistence
+(P4), the NULL `carb_per_100`/`fat_per_100` columns, and `docker compose up`,
+which has never been verified because the image registry CDN is blocked here.
