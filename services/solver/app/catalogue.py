@@ -13,12 +13,16 @@ from .domain import Item, Recipe
 
 ITEM_SQL = """
 SELECT i.slug, i.name, i.unit::text, i.aisle, i.kcal_per_100, i.protein_per_100,
-       i.keeps::text, i.shelf_life_days, i.category::text, p.pack_size, p.price
+       i.keeps::text, i.shelf_life_days, i.category::text, p.pack_size, p.price,
+       coalesce((SELECT array_agg(a.allergen ORDER BY a.allergen)
+                 FROM item_allergen a WHERE a.item_id = i.id), '{}')
 FROM item i
 JOIN item_price p ON p.item_id = i.id AND p.is_current
 JOIN store s      ON s.id = p.store_id
 WHERE s.slug = %s
 """
+
+TAG_SQL = "SELECT r.slug, t.tag FROM recipe_tag t JOIN recipe r ON r.id = t.recipe_id"
 
 RECIPE_SQL = """
 SELECT r.slug, r.name, r.minutes, r.meal_slot::text, r.image_url,
@@ -40,6 +44,7 @@ def load(store: str, dsn: str | None = None
                 kcal_per_100=float(row[4]), protein_per_100=float(row[5]),
                 keeps=row[6], shelf_life_days=row[7], category=row[8],
                 pack_size=float(row[9]), price=float(row[10]),
+                allergens=frozenset(row[11]),
             )
             for row in conn.execute(ITEM_SQL, (store,))
         }
@@ -52,6 +57,10 @@ def load(store: str, dsn: str | None = None
                                           slot=slot, image=image, ing={}))
             r["ing"][item_slug] = float(qty)
 
+        tags: dict[str, set[str]] = {}
+        for slug, tag in conn.execute(TAG_SQL):
+            tags.setdefault(slug, set()).add(tag)
+
     recipes, dropped = {}, []
     for slug, r in raw.items():
         missing = set(r["ing"]) - set(items)
@@ -60,5 +69,6 @@ def load(store: str, dsn: str | None = None
             continue
         recipes[slug] = Recipe(slug=slug, name=r["name"], minutes=r["minutes"],
                                meal_slot=r["slot"], ingredients=r["ing"],
-                               image_url=r["image"])
+                               image_url=r["image"],
+                               tags=frozenset(tags.get(slug, ())))
     return items, recipes, dropped

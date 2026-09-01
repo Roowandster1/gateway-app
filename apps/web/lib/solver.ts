@@ -6,6 +6,8 @@
  * server-side. Nothing here decides meals, prices or quantities; it forwards a
  * request and returns what CBC produced.
  */
+import type { Allergen, Appliance, Protein, Style } from "@/lib/diet";
+
 export type Objective = "protein" | "cheapest" | "variety";
 export type Slot = "breakfast" | "main" | "snack";
 
@@ -18,6 +20,12 @@ export interface SolveRequest {
   household_size?: number;
   objective?: Objective;
   pantry?: Record<string, number>;
+  /** Dietary answers. These only remove recipes before the solve — never score them. */
+  avoid_allergens?: Allergen[];
+  /** Appliances owned. Empty means "assume everything", never "assume none". */
+  appliances?: Appliance[];
+  avoid_proteins?: Protein[];
+  styles?: Style[];
 }
 
 export interface PlanMeal {
@@ -61,6 +69,7 @@ export interface Plan {
   meals: PlanMeal[];
   basket: BasketLine[];
   closing_pantry: Record<string, number>;
+  recipes_left?: number;
 }
 
 /** SPEC §2: infeasibility is a feature, so it arrives as a 200 with a reason. */
@@ -70,6 +79,9 @@ export interface Infeasible {
   also_binding: string[];
   suggestion: string;
   min_feasible_budget: number | null;
+  recipes_left?: number;
+  /** How many recipes each answer removed, so the blocker can be named. */
+  removed_by?: Record<string, number>;
 }
 
 export interface Floor {
@@ -79,6 +91,14 @@ export interface Floor {
   first: number | null;
   /** Cheapest plan once the cupboard is stocked. Null when money is not the blocker. */
   ongoing: number | null;
+  /**
+   * Set when the dietary filters, not money, make a plan impossible — the
+   * catalogue has no gluten-free breakfast, say. No budget fixes this, so the
+   * budget screen must not offer one.
+   */
+  blocked: string | null;
+  /** How many of the 24 recipes survive the filters. */
+  recipes_left: number;
 }
 
 /**

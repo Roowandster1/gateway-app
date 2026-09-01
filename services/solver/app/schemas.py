@@ -9,6 +9,13 @@ from pydantic import BaseModel, Field
 from . import config
 
 Objective = Literal["protein", "cheapest", "variety"]
+# Only the groups the catalogue can actually speak to. An allergen absent here
+# is absent because no item's name settles it — see 012_diet_filters.sql.
+Allergen = Literal["gluten", "dairy", "egg", "fish", "peanut"]
+Appliance = Literal["hob", "oven", "microwave", "airfryer"]
+# The catalogue has no pork, so no pork option exists anywhere.
+Protein = Literal["beef", "chicken", "fish", "egg"]
+Style = Literal["speedy", "onepot", "veggie"]
 
 
 class SolveRequest(BaseModel):
@@ -28,6 +35,15 @@ class SolveRequest(BaseModel):
     exclude_items: list[str] = Field(default_factory=list)
     exclude_recipes: list[str] = Field(default_factory=list)
     objective: Objective = "protein"
+
+    # Dietary and kitchen answers. These only ever remove recipes before the
+    # solve; nothing here reaches the objective. See filters.py.
+    avoid_allergens: list[Allergen] = Field(default_factory=list)
+    # Appliances owned. Empty means "assume everything", so a caller that does
+    # not ask the question never gets a narrower plan than the catalogue allows.
+    appliances: list[Appliance] = Field(default_factory=list)
+    avoid_proteins: list[Protein] = Field(default_factory=list)
+    styles: list[Style] = Field(default_factory=list)
 
 
 class PlanMeal(BaseModel):

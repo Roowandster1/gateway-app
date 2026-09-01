@@ -18,6 +18,8 @@ class Item:
     category: str
     pack_size: float
     price: float
+    # Name-derived allergen groups, never label data. See 012_diet_filters.sql.
+    allergens: frozenset[str] = frozenset()
 
     @property
     def unit_cost(self) -> float:
@@ -56,6 +58,10 @@ class Recipe:
     # Decorative dish photography. Never used in selection, pricing or
     # quantities; a recipe without one simply renders without a picture.
     image_url: str | None = None
+    # 'app:hob', 'pro:beef', 'sty:speedy', 'vegetarian', ... See filters.py.
+    # Tags only ever remove a recipe from consideration before the solve; they
+    # never enter the objective.
+    tags: frozenset[str] = frozenset()
 
     def macros(self, items: dict[str, Item]) -> tuple[float, float]:
         kcal = protein = 0.0

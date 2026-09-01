@@ -1088,3 +1088,64 @@ surface, loud numbers.
 Still open, unchanged: **the receipt test** (SPEC §6, the gate on P2),
 persistence (P4), the NULL `carb_per_100`/`fat_per_100` columns, and
 `docker compose up`.
+
+---
+
+## Session 18 — Mise's screens, minus the parts our data can't back
+
+Roo sent five screenshots of **Mise** and asked for the same styles and options.
+The visual language ported cleanly: pastel tiles in a 2-column grid, emoji over
+a bold label, an accent border for selected, a bold question with a small grey
+sub-line. That is now `.tiles`/`.tile` in the shared stylesheet, and the store
+and goal screens use it too.
+
+The *options* needed a filter of their own, because several of Mise's would have
+been theatre here:
+
+| Mise offers | We ship | Why |
+|---|---|---|
+| 9 supermarkets | 2 live, 7 shown but disabled | Only Aldi and Tesco have prices. Rule 3 at store scale |
+| Beef / Pork / Chicken / Fish | Beef / Chicken / Fish / Eggs | The catalogue has **no pork** |
+| 8 allergens | 5 | gluten, dairy, egg, fish, peanut are settled by product names. Soy, sesame and shellfish are not, and a guessed allergen is worse than an absent one |
+| 8 mood tags | 3 | speedy, one-pot and veggie come from data. "Family favs" and "gut friendly" are an LLM's opinion, which rule 1 keeps out of selection |
+| 4 appliances | 4 | All real: a microwave genuinely bakes a jacket, an air fryer genuinely does the traybake |
+
+**What was built.** Migration 012 adds `item_allergen` and tags recipes with
+`app:` / `pro:` / `sty:` prefixes — all derived from what the catalogue already
+contains, none invented. A new `services/solver/app/filters.py` turns the answers
+into a set of excluded recipes *before* the solve, so nothing here touches the
+objective; the model still only sees a smaller recipe list. `/solve` and `/floor`
+both honour the filters, and both report `recipes_left`.
+
+**The best bit is what happens when the filters bite.** Ask for gluten-free and
+the catalogue has no gluten-free breakfast, so no budget on earth produces a
+plan. Rather than handing CBC an empty breakfast list and letting it report
+"budget too low" — naming the wrong constraint, the one thing SPEC §2 forbids —
+`blocked_reason()` catches it first and says: *"Nothing in the catalogue can be
+a breakfast once gluten-free is applied. This is a gap in the 24 recipes, not a
+budget problem — no amount of money fixes it."* It names the single answer that
+did the damage, not every answer given.
+
+Every filter screen also carries a live `18 of 24 recipes still fit` counter that
+turns red with that reason the moment a slot empties. With 24 recipes, a stacked
+filter set runs out of breakfasts quickly, and finding out four screens later is
+a dead end.
+
+**One real bug found by walking it.** Styles were filtering every meal slot, so
+picking "one pot" wiped out breakfast — technically correct, plainly not what
+anyone means. Styles now shape the **mains only**. Regression test added.
+
+Measured after: worst tile-label contrast **6.83:1** (the 11px sub was at 4.47:1
+on the lightest pastel until it got its own fixed colour), smallest text 10.5px,
+no target under 24px, no overflow at 320/360/414px. 53 solver tests pass;
+`next build`, `eslint`, `tsc` clean.
+
+**The demo does not get the four new screens.** Its 624 plans are pre-solved and
+the filter space is combinatorial — it cannot be exported. Rather than show four
+screens that collect answers and ignore them, the demo says so in a line on the
+goal screen. The filters are live in `apps/web`.
+
+Still open, unchanged: **the receipt test**, persistence (P4), the NULL
+`carb_per_100`/`fat_per_100` columns, `docker compose up` — and now also a real
+catalogue gap this session made visible: **there is no gluten-free breakfast**,
+and only one dairy-free one.

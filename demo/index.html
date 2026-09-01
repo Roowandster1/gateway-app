@@ -97,6 +97,7 @@ body{background:var(--board);color:var(--ink);font-family:var(--sans);
   text-wrap:balance}
 .q .sm{display:block;font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.1em;
   text-transform:uppercase;color:var(--ink-2);margin-bottom:6px}
+.qsub{margin:-8px 0 14px;font-size:13.5px;color:var(--ink-2)}
 
 /* ---- choice rows ---- */
 .choices{display:flex;flex-direction:column;gap:9px}
@@ -110,6 +111,45 @@ body{background:var(--board);color:var(--ink);font-family:var(--sans);
 .choice .dt{font-size:12.5px;color:var(--ink-2);display:block;margin-top:1px}
 .choice .num{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-2);
   text-align:right;white-space:nowrap;line-height:1.4}
+
+/* ---- pastel tiles: the pick-many screens ---- */
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tiles.wide{grid-template-columns:1fr}
+.tile{appearance:none;cursor:pointer;font-family:var(--sans);color:var(--ink);
+  border:2.5px solid transparent;border-radius:16px;padding:18px 10px 14px;text-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:7px;min-height:96px;
+  justify-content:center;transition:border-color .12s,transform .08s}
+.tile:hover{transform:translateY(-1px)}
+.tile:active{transform:none}
+.tile:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.tile[aria-pressed="true"]{border-color:var(--accent)}
+.tile .emo{font-size:26px;line-height:1}
+.tile .t{font-size:15px;font-weight:700;letter-spacing:-.02em}
+.tile .s{font-size:11px;color:#43474F;margin-top:-3px}
+.tile[disabled]{cursor:not-allowed;opacity:.45}
+.tile[disabled]:hover{transform:none}
+/* Pastel fills. Label text is always --ink, which clears 4.5:1 on every one. */
+.c1{background:#FBD5DA} .c2{background:#FBDCC0} .c3{background:#FBEEB5}
+.c4{background:#CFE4FB} .c5{background:#E0D8FB} .c6{background:#C6EDE4}
+.c7{background:#D9EFC9} .c8{background:#D9DCFA} .c9{background:#F5E6D0}
+.c0{background:var(--paper-2)}
+/* The pastel fills do not change with the theme, so neither does their text. */
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .tile{color:#14161A}}
+:root[data-theme="dark"] .tile{color:#14161A}
+/* ...except the unpriced tile, which is a themed surface rather than a pastel. */
+.tile.c0{color:var(--ink)} .tile.c0 .s{color:var(--ink-2)}
+
+/* How many recipes survive the filters so far. With 24 of them a stacked
+   filter set empties a meal slot quickly, and finding that out only at the end
+   is a dead end. */
+.counter{display:flex;align-items:center;gap:8px;margin-top:14px;padding:9px 12px;
+  border-radius:10px;background:var(--paper-2);font-size:12.5px;color:var(--ink-2)}
+.counter b{font-family:var(--mono);font-weight:600;color:var(--ink)}
+.counter.bad{background:var(--red-bg);color:var(--red)}
+.counter.bad b{color:var(--red)}
+.caveat{font-size:11.5px;color:var(--ink-2);line-height:1.5;margin:12px 0 0;
+  padding:10px 12px;border-radius:10px;background:var(--paper-2)}
+.caveat b{color:var(--ink)}
 
 /* ---- sliders ---- */
 .readout{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
@@ -314,7 +354,11 @@ input[type=range]:focus-visible{outline:3px solid var(--accent);outline-offset:4
       <!-- 1. store -->
       <section class="screen" id="s-store">
         <h2 class="q"><span class="sm">Step one</span>Where do you shop?</h2>
-        <div class="choices" id="storeList"></div>
+        <p class="qsub">We&rsquo;ll plan the whole shop around it.</p>
+        <div class="tiles" id="storeList"></div>
+        <p class="caveat">Only Aldi and Tesco carry real prices so far. The rest are
+          greyed out rather than hidden: planning them with another shop&rsquo;s numbers
+          would break the one thing this app promises.</p>
         <div class="cta"><button class="btn" data-next="days">Continue</button></div>
       </section>
 
@@ -353,7 +397,13 @@ input[type=range]:focus-visible{outline:3px solid var(--accent);outline-offset:4
       <!-- 4. goal -->
       <section class="screen" id="s-goal" hidden>
         <h2 class="q"><span class="sm">Step four</span>What are you eating for?</h2>
-        <div class="choices" id="goalList"></div>
+        <p class="qsub">These set the calorie band and the protein floor.</p>
+        <div class="tiles" id="goalList"></div>
+        <p class="caveat">The live app asks four more questions before this one —
+          your kitchen, what you don&rsquo;t eat, allergies and style. They filter the
+          recipe list before the solve. This demo carries a fixed grid of
+          <b>624 pre-solved plans</b> covering shop, length, budget and goal only,
+          so those four are not offered here rather than shown and ignored.</p>
         <div class="cta"><button class="btn" data-next="plan">Build the plan</button></div>
       </section>
 
@@ -416,6 +466,12 @@ input[type=range]:focus-visible{outline:3px solid var(--accent);outline-offset:4
   var IMAGES = JSON.parse(document.getElementById("imageData").textContent);
   var STORE_NAMES = {aldi:"Aldi", tesco:"Tesco"};
   var GOAL_ORDER = ["frugal","maintain","cut","bulk"];
+  var GOAL_EMOJI = {frugal:"🪙", maintain:"⚖️", cut:"📉", bulk:"💪"};
+  var GOAL_COLOUR = {frugal:"c3", maintain:"c6", cut:"c4", bulk:"c1"};
+  var STORE_COLOUR = {aldi:"c4", tesco:"c1"};
+  // Names only, never logos: DESIGN.md says the app names these shops as data
+  // and must not dress as them.
+  var UNPRICED = ["Sainsbury's","Asda","Morrisons","Lidl","Co-op","M&S","Waitrose"];
   var STEPS = ["store","days","budget","goal","plan"];
   var STEP_NAMES = {store:"Where you shop", days:"How long for", budget:"The budget",
                     goal:"What you're eating for", plan:"Your plan"};
@@ -480,11 +536,17 @@ input[type=range]:focus-visible{outline:3px solid var(--accent);outline-offset:4
   function renderStores(){
     $("storeList").innerHTML = DATA.stores.map(function(s){
       var f = (DATA.floors[s+"|7|frugal"] || {}).first;
-      return '<button class="choice" data-store="'+s+'" aria-pressed="'+(state.store===s)+'">'
-        + '<span><span class="nm">'+esc(STORE_NAMES[s])+'</span>'
-        + '<span class="dt">28 items priced</span></span>'
-        + '<span class="num">from '+money(f)+'<br>a week</span></button>';
-    }).join("");
+      return '<button class="tile '+STORE_COLOUR[s]+'" data-store="'+s+'" aria-pressed="'
+        + (state.store===s)+'">'
+        + '<span class="t">'+esc(STORE_NAMES[s])+'</span>'
+        + '<span class="s">from '+money(f)+' a week</span></button>';
+    }).join("")
+      // The seven shops with no prices are listed but not selectable, so the
+      // gap is visible rather than hidden. CLAUDE.md rule 3 at store scale.
+      + UNPRICED.map(function(n){
+          return '<button class="tile c0" disabled><span class="t">'+esc(n)+'</span>'
+            + '<span class="s">no prices yet</span></button>';
+        }).join("");
   }
 
   /* ---------- step 2: length ---------- */
@@ -562,10 +624,12 @@ input[type=range]:focus-visible{outline:3px solid var(--accent);outline-offset:4
   function renderGoals(){
     $("goalList").innerHTML = GOAL_ORDER.map(function(g){
       var c = DATA.goals[g];
-      return '<button class="choice" data-goal="'+g+'" aria-pressed="'+(state.goal===g)+'">'
-        + '<span><span class="nm">'+esc(c.label)+'</span>'
-        + '<span class="dt">'+c.kcal_band[0]+'–'+c.kcal_band[1]+' kcal a day</span></span>'
-        + '<span class="num">'+c.protein+'g protein<br>minimum</span></button>';
+      return '<button class="tile '+GOAL_COLOUR[g]+'" data-goal="'+g+'" aria-pressed="'
+        + (state.goal===g)+'">'
+        + '<span class="emo" aria-hidden="true">'+GOAL_EMOJI[g]+'</span>'
+        + '<span class="t">'+esc(c.label)+'</span>'
+        + '<span class="s">'+c.kcal_band[0]+'–'+c.kcal_band[1]+' kcal · '
+        + c.protein+'g protein</span></button>';
     }).join("");
   }
 

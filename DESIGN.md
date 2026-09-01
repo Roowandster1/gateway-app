@@ -283,3 +283,40 @@ Reusable prompts that stay on-system:
   surfaces; label every series; never rely on colour alone."*
 - *"Handle the empty/failed state as a designed result: plain-English cause, the
   constraint named in mono, and the action that would fix it."*
+
+---
+
+## 10. Pick-many screens
+
+The dietary, kitchen and style questions use **pastel tiles**, not the ruled
+choice rows the single-answer screens use. The shape carries the meaning: a row
+is "pick one", a tile grid is "tap as many as apply".
+
+- 2-column grid, 16px radius, 10px gap, solid pastel fill, ~96px tall.
+- Emoji, then a 15px/700 label, then an optional 11px sub.
+- Selected takes a **2.5px accent border**. Nothing else changes — no fill
+  swap, because the fill is already carrying the tile's identity.
+- Nine pastels (`.c1`–`.c9`) plus `.c0` for a disabled tile. **The colours mean
+  nothing.** Every tile is labelled, and a viewer who sees no colour at all
+  loses nothing.
+- Tile text is fixed dark (`--ink` for the label, `#43474F` for the sub) rather
+  than tokenised, because the pastel fills do not change between themes.
+  `--ink-2` measured **4.47:1** on the lightest fill — under AA at 11px — which
+  is why the sub is its own value. Re-measure if a pastel changes.
+
+Two rules that are about honesty rather than looks:
+
+- **An option that cannot be honoured is not offered.** No pork toggle (the
+  catalogue has no pork). No soy, sesame or shellfish (no product name settles
+  them). No "family favourite" or "gut friendly" (that is a language model's
+  opinion dressed as data, and CLAUDE.md rule 1 keeps opinions out of the
+  selection path). The seven unpriced supermarkets are *shown but disabled*, so
+  the gap is visible rather than hidden.
+- **Every filter screen carries a live count.** `18 of 24 recipes still fit`,
+  in a strip under the tiles, turning red with the actual reason the moment a
+  meal slot empties. With a catalogue this small a stacked filter set runs out
+  of breakfasts fast, and discovering that four screens later is a dead end.
+
+Allergen tiles additionally carry a standing caveat: the tags are derived from
+product names, not from labels. That is enough to filter a plan and not enough
+to trust with a real allergy, and the screen says exactly that.

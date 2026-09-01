@@ -10,13 +10,28 @@ import pulp
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from . import config
+from . import config, filters
 from .catalogue import load
 from .model import (Infeasible, SolveParams, cheapest_feasible_budget,
                     solve_plan)
 from .schemas import SolveRequest
 
 app = FastAPI(title="pantry solver", version="0.2.0")
+
+
+def _filtered(req: SolveRequest, items, recipes):
+    """
+    Apply the dietary answers, and report a filter set that can never work.
+
+    A filter that empties a meal slot is not a budget problem, so it is caught
+    here rather than handed to CBC — reporting "budget too low" for a catalogue
+    that has no gluten-free breakfast would name the wrong constraint, which is
+    the one thing SPEC §2 says an infeasible answer must never do.
+    """
+    diet = filters.Diet.of(req.avoid_allergens, req.appliances,
+                           req.avoid_proteins, req.styles)
+    report = filters.apply(items, recipes, diet)
+    return diet, report, tuple(sorted(set(req.exclude_recipes) | report.excluded))
 
 
 @app.get("/health")
@@ -53,6 +68,12 @@ def floor(req: SolveRequest):
     except ValueError as e:
         return JSONResponse(status_code=404, content={"status": "error", "detail": str(e)})
 
+    diet, report, excluded = _filtered(req, items, recipes)
+    if filters.blocked_reason(report, diet, recipes) is not None:
+        return {"store": req.store, "days": req.days, "first": None, "ongoing": None,
+                "blocked": filters.blocked_reason(report, diet, recipes),
+                "recipes_left": report.total_remaining}
+
     def params(pantry):
         return SolveParams(
             store=req.store, budget=10_000.0, days=req.days,
@@ -61,7 +82,7 @@ def floor(req: SolveRequest):
             max_cook_minutes_per_day=req.max_cook_minutes_per_day,
             max_repeat=req.max_repeat, min_distinct_mains=req.min_distinct_mains,
             pantry=pantry, exclude_items=tuple(req.exclude_items),
-            exclude_recipes=tuple(req.exclude_recipes), objective="cheapest")
+            exclude_recipes=excluded, objective="cheapest")
 
     first = cheapest_feasible_budget(items, recipes, params(req.pantry))
     ongoing = None
@@ -76,7 +97,8 @@ def floor(req: SolveRequest):
                     break
         ongoing = cheapest_feasible_budget(items, recipes, params(pantry))
 
-    return {"store": req.store, "days": req.days, "first": first, "ongoing": ongoing}
+    return {"store": req.store, "days": req.days, "first": first, "ongoing": ongoing,
+            "blocked": None, "recipes_left": report.total_remaining}
 
 
 @app.post("/solve")
@@ -86,6 +108,21 @@ def solve(req: SolveRequest):
     except ValueError as e:
         return JSONResponse(status_code=404, content={"status": "error", "detail": str(e)})
 
+    diet, report, excluded = _filtered(req, items, recipes)
+    blocked = filters.blocked_reason(report, diet, recipes)
+    if blocked is not None:
+        # Answered before CBC is asked: no budget can conjure a recipe that is
+        # not in the catalogue.
+        return JSONResponse(status_code=200, content={
+            "status": "infeasible",
+            "binding": "filters",
+            "suggestion": blocked,
+            "min_feasible_budget": None,
+            "also_binding": sorted(report.by_reason),
+            "recipes_left": report.total_remaining,
+            "removed_by": {k: len(v) for k, v in sorted(report.by_reason.items())},
+        })
+
     params = SolveParams(
         store=req.store, budget=req.budget, days=req.days,
         meals_per_day=req.meals_per_day, household_size=req.household_size,
@@ -93,7 +130,7 @@ def solve(req: SolveRequest):
         max_cook_minutes_per_day=req.max_cook_minutes_per_day,
         max_repeat=req.max_repeat, min_distinct_mains=req.min_distinct_mains,
         pantry=req.pantry, exclude_items=tuple(req.exclude_items),
-        exclude_recipes=tuple(req.exclude_recipes), objective=req.objective,
+        exclude_recipes=excluded, objective=req.objective,
     )
 
     try:
@@ -107,11 +144,14 @@ def solve(req: SolveRequest):
             "suggestion": e.suggestion,
             "min_feasible_budget": e.min_feasible_budget,
             "also_binding": e.also_binding,
+            "recipes_left": report.total_remaining,
+            "removed_by": {k: len(v) for k, v in sorted(report.by_reason.items())},
         })
 
     # The discriminator the client branches on. Without it a successful plan is
     # indistinguishable from an infeasible one, because both arrive as HTTP 200.
     body = {"status": "ok", **dataclasses.asdict(plan)}
+    body["recipes_left"] = report.total_remaining
     if dropped:
         body["catalogue_gaps"] = dropped
     return body

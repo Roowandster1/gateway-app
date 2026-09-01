@@ -2,19 +2,52 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CostSplit } from "@/components/CostSplit";
-import { DAY_STOPS, GOALS, GOAL_ORDER, STORES, type GoalKey } from "@/lib/goals";
+import { DAY_STOPS, GOALS, GOAL_ORDER, type GoalKey } from "@/lib/goals";
+import {
+  ALLERGENS,
+  ALL_STORES,
+  APPLIANCES,
+  PROTEINS,
+  STYLES,
+  TOTAL_RECIPES,
+  type Allergen,
+  type Appliance,
+  type Protein,
+  type Style,
+  type Tile,
+} from "@/lib/diet";
 import type { Floor, Plan, SolveResult, SolverError } from "@/lib/solver";
 
-const STEPS = ["store", "days", "budget", "goal", "plan"] as const;
+const STEPS = [
+  "store",
+  "kitchen",
+  "eat",
+  "allergies",
+  "style",
+  "days",
+  "budget",
+  "goal",
+  "plan",
+] as const;
 type Step = (typeof STEPS)[number];
+const LAST_QUESTION = STEPS.length - 2;
 
 const STEP_NAMES: Record<Step, string> = {
   store: "Where you shop",
+  kitchen: "Your kitchen",
+  eat: "What you eat",
+  allergies: "Allergies",
+  style: "Your style",
   days: "How long for",
   budget: "The budget",
   goal: "What you're eating for",
   plan: "Your plan",
 };
+
+/** Toggles a key in a Set-like array, keeping the order stable. */
+function toggle<T>(list: T[], key: T): T[] {
+  return list.includes(key) ? list.filter((k) => k !== key) : [...list, key];
+}
 
 const money = (n: number) => `£${n.toFixed(2)}`;
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
@@ -68,6 +101,14 @@ export function Planner() {
   const [store, setStore] = useState("aldi");
   const [days, setDays] = useState(7);
   const [goal, setGoal] = useState<GoalKey>("maintain");
+  // Filters. Empty is the permissive answer everywhere: no allergen avoided,
+  // every appliance assumed, every protein eaten, no style narrowing. A person
+  // who taps Continue four times gets exactly the plan they got before these
+  // screens existed.
+  const [appliances, setAppliances] = useState<Appliance[]>([]);
+  const [avoidProteins, setAvoidProteins] = useState<Protein[]>([]);
+  const [avoidAllergens, setAvoidAllergens] = useState<Allergen[]>([]);
+  const [styles, setStyles] = useState<Style[]>([]);
   // A slider, with the measured floor pinned on the track. The old build's
   // range started at £25 and implied that was the minimum; it now runs from
   // half the floor to two and a half times it, so a small budget is reachable
@@ -86,7 +127,18 @@ export function Planner() {
   const [ticked, setTicked] = useState<Record<string, boolean>>({});
 
   const targets = GOALS[goal];
-  const floorKey = `${store}|${days}|${goal}`;
+  const diet = useMemo(
+    () => ({
+      avoid_allergens: avoidAllergens,
+      appliances,
+      avoid_proteins: avoidProteins,
+      styles,
+    }),
+    [avoidAllergens, appliances, avoidProteins, styles],
+  );
+  // The floor depends on the filters too — a vegetarian week has a different
+  // cheapest shop — so they belong in the key that makes a stored floor stale.
+  const floorKey = `${store}|${days}|${goal}|${JSON.stringify(diet)}`;
   const floorEntry = floorFor?.key === floorKey ? floorFor : null;
   const floor = floorEntry?.value ?? null;
   const floorUnavailable = floorEntry !== null && floorEntry.value === null;
@@ -101,9 +153,10 @@ export function Planner() {
       budget,
       min_protein_per_day: targets.protein,
       kcal_band: targets.kcal,
+      ...diet,
       ...over,
     }),
-    [store, days, budget, targets],
+    [store, days, budget, targets, diet],
   );
 
   // The floor is fetched before a budget is chosen, so the screen can say what
@@ -119,6 +172,7 @@ export function Planner() {
         budget: 999,
         min_protein_per_day: targets.protein,
         kcal_band: targets.kcal,
+        ...diet,
       }),
     })
       .then(async (r) => ({ ok: r.ok, value: (await r.json()) as Floor | SolverError }))
@@ -143,7 +197,7 @@ export function Planner() {
     return () => {
       live = false;
     };
-  }, [floorKey, store, days, targets]);
+  }, [floorKey, store, days, targets, diet]);
 
   async function buildPlan() {
     setBusy(true);
@@ -171,7 +225,9 @@ export function Planner() {
 
   const ix = STEPS.indexOf(step);
   const plan = result?.status === "ok" ? (result as Plan) : null;
-  const storeName = STORES.find((s) => s.slug === store)?.name ?? store;
+  const storeName = ALL_STORES.find((s) => s.slug === store)?.name ?? store;
+  const recipesLeft = floor?.recipes_left ?? TOTAL_RECIPES;
+  const blocked = floor?.blocked ?? null;
 
   return (
     <div className="phone">
@@ -183,43 +239,128 @@ export function Planner() {
         )}
         <span className="lab">{STEP_NAMES[step]}</span>
         <span className="idx">
-          {ix < 4 ? `${ix + 1} of 4` : plan ? "Solved" : "No fit"}
+          {ix <= LAST_QUESTION ? `${ix + 1} of ${LAST_QUESTION + 1}` : plan ? "Solved" : "No fit"}
         </span>
       </div>
-      {ix < 4 && (
+      {ix <= LAST_QUESTION && (
         <div className="rail">
-          {[0, 1, 2, 3].map((i) => (
+          {STEPS.slice(0, LAST_QUESTION + 1).map((_, i) => (
             <i key={i} className={i <= ix ? "on" : undefined} />
           ))}
         </div>
       )}
 
       {step === "store" && (
-        <Screen eyebrow="Step one" q="Where do you shop?" cta="Continue" onNext={() => setStep("days")}>
-          <div className="choices">
-            {STORES.map((s) => (
-              <Choice
+        <Screen
+          eyebrow={`Step 1 of ${LAST_QUESTION + 1}`}
+          q="Where do you shop?"
+          sub="We'll plan the whole shop around it."
+          cta="Continue"
+          onNext={() => setStep("kitchen")}
+        >
+          <div className="tiles">
+            {ALL_STORES.map((s) => (
+              <button
                 key={s.slug}
-                selected={store === s.slug}
+                className={`tile ${s.priced ? s.colour : "c0"}`}
+                aria-pressed={store === s.slug}
+                disabled={!s.priced}
                 onClick={() => setStore(s.slug)}
-                name={s.name}
-                detail="28 items priced"
-                aside={
-                  floor?.first && store === s.slug ? (
-                    <>
-                      from {money(floor.first)}
-                      <br />a {periodNoun(days)}
-                    </>
-                  ) : undefined
-                }
-              />
+              >
+                <span className="t">{s.name}</span>
+                <span className="s">{s.priced ? "28 items priced" : "no prices yet"}</span>
+              </button>
             ))}
           </div>
+          <p className="caveat">
+            Only Aldi and Tesco carry real prices so far. The rest are greyed out
+            rather than hidden: planning them with another shop&apos;s numbers would
+            break the one thing this app promises.
+          </p>
+        </Screen>
+      )}
+
+      {step === "kitchen" && (
+        <Screen
+          eyebrow={`Step 2 of ${LAST_QUESTION + 1}`}
+          q="What can you cook with?"
+          sub="Leave it blank if you have the lot."
+          cta="Continue"
+          onNext={() => setStep("eat")}
+        >
+          <TileGrid
+            tiles={APPLIANCES}
+            selected={appliances}
+            onToggle={(k) => setAppliances(toggle(appliances, k))}
+          />
+          <Counter left={recipesLeft} blocked={blocked} />
+        </Screen>
+      )}
+
+      {step === "eat" && (
+        <Screen
+          eyebrow={`Step 3 of ${LAST_QUESTION + 1}`}
+          q="Anything you don't eat?"
+          sub="Tap what to leave out."
+          cta="Continue"
+          onNext={() => setStep("allergies")}
+        >
+          <TileGrid
+            tiles={PROTEINS}
+            selected={avoidProteins}
+            onToggle={(k) => setAvoidProteins(toggle(avoidProteins, k))}
+          />
+          <p className="caveat">
+            No pork option, because the catalogue has no pork. A toggle that did
+            nothing would look like a feature.
+          </p>
+          <Counter left={recipesLeft} blocked={blocked} />
+        </Screen>
+      )}
+
+      {step === "allergies" && (
+        <Screen
+          eyebrow={`Step 4 of ${LAST_QUESTION + 1}`}
+          q="Any allergies?"
+          sub="Nothing tapped means none."
+          cta="Continue"
+          onNext={() => setStep("style")}
+        >
+          <TileGrid
+            tiles={ALLERGENS}
+            selected={avoidAllergens}
+            onToggle={(k) => setAvoidAllergens(toggle(avoidAllergens, k))}
+          />
+          <p className="caveat">
+            <b>These come from product names, not from labels.</b> They are enough
+            to filter a meal plan and <b>not</b> enough to rely on for a real
+            allergy — always check the packet. Soy, sesame and shellfish are
+            missing because no product name settles them, and a guessed allergen
+            is worse than an absent one.
+          </p>
+          <Counter left={recipesLeft} blocked={blocked} />
+        </Screen>
+      )}
+
+      {step === "style" && (
+        <Screen
+          eyebrow={`Step 5 of ${LAST_QUESTION + 1}`}
+          q="What are you in the mood for?"
+          sub="Pick any, or none for everything."
+          cta="Continue"
+          onNext={() => setStep("days")}
+        >
+          <TileGrid
+            tiles={STYLES}
+            selected={styles}
+            onToggle={(k) => setStyles(toggle(styles, k))}
+          />
+          <Counter left={recipesLeft} blocked={blocked} />
         </Screen>
       )}
 
       {step === "days" && (
-        <Screen eyebrow="Step two" q="How long for?" cta="Continue" onNext={() => setStep("budget")}>
+        <Screen eyebrow={`Step 6 of ${LAST_QUESTION + 1}`} q="How long for?" cta="Continue" onNext={() => setStep("budget")}>
           <div className="readout">
             <span className="tik big">
               {days % 7 === 0
@@ -257,7 +398,7 @@ export function Planner() {
 
       {step === "budget" && (
         <Screen
-          eyebrow="Step three"
+          eyebrow={`Step 7 of ${LAST_QUESTION + 1}`}
           q="What's the budget?"
           cta="Continue"
           onNext={() => setStep("goal")}
@@ -304,7 +445,7 @@ export function Planner() {
 
       {step === "goal" && (
         <Screen
-          eyebrow="Step four"
+          eyebrow={`Step 8 of ${LAST_QUESTION + 1}`}
           q="What are you eating for?"
           cta={busy ? "Solving…" : "Build the plan"}
           disabled={busy}
@@ -365,6 +506,7 @@ export function Planner() {
 function Screen({
   eyebrow,
   q,
+  sub,
   cta,
   onNext,
   disabled,
@@ -372,6 +514,7 @@ function Screen({
 }: {
   eyebrow: string;
   q: string;
+  sub?: string;
   cta: string;
   onNext: () => void;
   disabled?: boolean;
@@ -383,6 +526,7 @@ function Screen({
         <span className="sm">{eyebrow}</span>
         {q}
       </h2>
+      {sub && <p className="qsub">{sub}</p>}
       {children}
       <div className="cta">
         <button className="btn" onClick={onNext} disabled={disabled}>
@@ -390,6 +534,63 @@ function Screen({
         </button>
       </div>
     </section>
+  );
+}
+
+/** A grid of pastel pick-many tiles. Colour is decoration; every tile is labelled. */
+function TileGrid<T extends string>({
+  tiles,
+  selected,
+  onToggle,
+}: {
+  tiles: Tile<T>[];
+  selected: T[];
+  onToggle: (k: T) => void;
+}) {
+  return (
+    <div className="tiles">
+      {tiles.map((t) => (
+        <button
+          key={t.key}
+          className={`tile ${t.colour}`}
+          aria-pressed={selected.includes(t.key)}
+          onClick={() => onToggle(t.key)}
+        >
+          <span className="emo" aria-hidden>
+            {t.emoji}
+          </span>
+          <span className="t">{t.label}</span>
+          {t.sub && <span className="s">{t.sub}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * How many of the 24 recipes survive the filters chosen so far.
+ *
+ * With a catalogue this small a stacked filter set empties a meal slot quickly,
+ * and finding that out four screens later is a dead end. This says it as it
+ * happens, and turns red with the real reason when the slot is already gone.
+ */
+function Counter({ left, blocked }: { left: number; blocked: string | null }) {
+  if (blocked) {
+    return (
+      <div className="counter bad">
+        <span>{blocked}</span>
+      </div>
+    );
+  }
+  return (
+    <div className="counter">
+      <span>
+        <b>
+          {left} of {TOTAL_RECIPES}
+        </b>{" "}
+        recipes still fit.
+      </span>
+    </div>
   );
 }
 
