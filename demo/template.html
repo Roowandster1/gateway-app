@@ -312,10 +312,13 @@ input[type=range]:focus-visible{outline:3px solid var(--accent);outline-offset:4
 .key-list .pc{font-variant-numeric:tabular-nums;font-size:10.5px;width:32px;text-align:right}
 .split .caption{font-size:12px;color:var(--ink-2);margin:11px 0 0;line-height:1.5}
 
-.tabs{display:grid;grid-template-columns:1fr 1fr;gap:3px;background:var(--paper-2);
+/* Three now: the week, every dish, the shopping list. Auto columns rather than
+   a fixed 1fr 1fr so the strip still works if a face is ever dropped. */
+.tabs{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:3px;background:var(--paper-2);
   border-radius:10px;padding:3px;margin-bottom:6px}
-.tab{appearance:none;border:0;background:none;font-family:var(--sans);font-size:13.5px;
-  font-weight:600;color:var(--ink-2);padding:9px 4px;cursor:pointer;border-radius:8px}
+.tab{appearance:none;border:0;background:none;font-family:var(--sans);font-size:13px;
+  font-weight:600;color:var(--ink-2);padding:9px 4px;cursor:pointer;border-radius:8px;
+  white-space:nowrap}
 .tab[aria-selected="true"]{background:var(--paper);color:var(--ink);
   box-shadow:0 1px 2px rgba(0,0,0,.07)}
 .tab:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
@@ -352,6 +355,11 @@ span.shot{display:flex;align-items:center;justify-content:center;
   border:1px dashed var(--rule);background:var(--paper)}
 span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
   background:var(--rule)}
+/* Which sitting of the day this is. Sits where the every-dish view puts its
+   multiplier, so the two lists line up when you switch between them. */
+.when{font-size:10px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;
+  color:var(--ink-2);background:var(--paper-2);border-radius:99px;padding:3px 8px;
+  flex-shrink:0;min-width:62px;text-align:center}
 .mult{font-variant-numeric:tabular-nums;font-size:12px;font-weight:600;color:var(--accent);
   background:var(--soft);border-radius:6px;padding:3px 6px;flex-shrink:0;line-height:1}
 .meal .nm{font-size:14.5px;font-weight:600;flex:1;letter-spacing:-.02em;line-height:1.3}

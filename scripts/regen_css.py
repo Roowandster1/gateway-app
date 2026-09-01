@@ -50,6 +50,12 @@ css = css.replace(summary_rule, summary_rule +
                   '\n.meal .row{display:flex;gap:11px;padding:9px 2px;align-items:center}')
 
 css += '''
+/* The demo draws a phone, so its meal list is capped and scrolls inside the
+   handset. The app IS the page, and a 420px scroller inside a scrolling page is
+   a scroll trap: you get day one, then the list ends under your thumb while the
+   page below it sits empty. Let the page do the scrolling. */
+.pane{max-height:none}
+
 /* Solver-down message, shown under whichever screen is open. */
 .screen-error{margin:0 16px 16px;padding:10px 12px;border-radius:10px;font-size:12.5px;
   background:var(--red-bg);color:var(--red)}

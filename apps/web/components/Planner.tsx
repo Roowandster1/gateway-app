@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CostSplit } from "@/components/CostSplit";
 import { GOALS, GOAL_ORDER, type GoalKey } from "@/lib/goals";
+import { kcalIn, layOutWeek, merged } from "@/lib/week";
 import {
   ALLERGENS,
   ALL_STORES,
@@ -72,6 +73,12 @@ function toggle<T>(list: T[], key: T): T[] {
 }
 
 const money = (n: number) => `£${n.toFixed(2)}`;
+
+/** Which face of the plan you are looking at. */
+type Tab = "week" | "food" | "shop";
+
+/** What to call each sitting in the day-by-day view. */
+const SITTING = { breakfast: "Breakfast", main: "Main", snack: "Snack" } as const;
 
 /**
  * A price, or nothing at all.
@@ -170,7 +177,7 @@ export function Planner() {
   const [result, setResult] = useState<SolveResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"food" | "shop">("food");
+  const [tab, setTab] = useState<Tab>("week");
   const [ticked, setTicked] = useState<Record<string, boolean>>({});
 
   const ix = STEPS.indexOf(step);
@@ -1100,8 +1107,8 @@ function PlanScreen({
   result: SolveResult | null;
   methods: Record<string, Method>;
   days: number;
-  tab: "food" | "shop";
-  setTab: (t: "food" | "shop") => void;
+  tab: Tab;
+  setTab: (t: Tab) => void;
   ticked: Record<string, boolean>;
   setTicked: (t: Record<string, boolean>) => void;
   onUseFloor: (b: number) => void;
@@ -1151,6 +1158,7 @@ function PlanScreen({
     (a, b) => order[a.slot] - order[b.slot] || b.servings - a.servings,
   );
   const titles = { breakfast: "Breakfast", main: "Main meals", snack: "Snacks" };
+  const week = layOutWeek(plan.meals, days);
   const seen = new Set<string>();
 
   const byAisle = new Map<string, typeof plan.basket>();
@@ -1170,10 +1178,18 @@ function PlanScreen({
         <button
           className="tab"
           role="tab"
+          aria-selected={tab === "week"}
+          onClick={() => setTab("week")}
+        >
+          The week
+        </button>
+        <button
+          className="tab"
+          role="tab"
           aria-selected={tab === "food"}
           onClick={() => setTab("food")}
         >
-          The food
+          Every dish
         </button>
         <button
           className="tab"
@@ -1185,7 +1201,55 @@ function PlanScreen({
         </button>
       </div>
 
-      {tab === "food" ? (
+      {tab === "week" ? (
+        <Scroller key="week" label="The week, day by day">
+          {week.map((d) => (
+            <div key={d.n}>
+              <div className="slot-head">
+                <span>Day {d.n}</span>
+                <span>{Math.round(kcalIn(d))} kcal</span>
+              </div>
+              {merged(d.sittings).map((x) => (
+                <details className="meal" key={`${x.slot}-${x.index}-${x.meal.recipe}`}>
+                  <summary>
+                    {x.meal.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img className="shot" src={x.meal.image_url} alt="" loading="lazy" />
+                    ) : (
+                      <span className="shot" />
+                    )}
+                    <span className="when">
+                      {SITTING[x.slot]}
+                      {x.n > 1 && ` ×${x.n}`}
+                    </span>
+                    <span className="nm">{x.meal.name}</span>
+                    <span className="mac">
+                      {Math.round(x.meal.protein_per_serving * x.n)}g ·{" "}
+                      {Math.round(x.meal.kcal_per_serving * x.n)} kcal
+                      <br />
+                      {x.meal.minutes} min
+                    </span>
+                    <span className="chev" aria-hidden>
+                      ▶
+                    </span>
+                  </summary>
+                  <Recipe method={methods[x.meal.recipe]} />
+                </details>
+              ))}
+            </div>
+          ))}
+          {/* The solver constrains the plan, not the day: every nutrition
+              constraint is written against days × household, so what it
+              guarantees is the average. Which dish lands on which day is this
+              app's arrangement, and saying so is cheaper than implying a
+              precision the maths never claimed. */}
+          <p className="caveat">
+            The targets are met across the whole plan — <b>{Math.round(plan.kcal_per_day)} kcal</b>{" "}
+            and <b>{Math.round(plan.protein_per_day)}g protein</b> a day on average. Days
+            are laid out to spread dishes apart; move them around freely.
+          </p>
+        </Scroller>
+      ) : tab === "food" ? (
         <Scroller key="food" label="The meals in this plan">
           {meals.map((m) => {
             let head = null;
