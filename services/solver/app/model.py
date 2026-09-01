@@ -22,6 +22,37 @@ from . import config
 from .domain import Item, Recipe
 
 
+class _CbcViaLp(pulp.PULP_CBC_CMD):
+    """
+    CBC, fed an LP file instead of an MPS one.
+
+    PuLP hands CBC an MPS file and gives no public way to ask for anything else
+    (`solve_CBC(lp, use_mps=True)` — the flag exists, `actualSolve` never
+    forwards it). For most models that is invisible. For at least one of ours it
+    is a segmentation fault:
+
+        cbc bulk-7day.mps -sec 45 -branch -solution out.sol   -> SIGSEGV
+        cbc bulk-7day.lp  -sec 45 -branch -solution out.sol   -> Optimal, 15s
+
+    Same model, same flags, same binary. The bug is in CBC's MPS reader, not in
+    the model, and it is deterministic — 'aldi | 7 days | bulk | no filters'
+    crashed it on every run, which is why retrying the call never helped and
+    only made the export take three times as long to fail.
+
+    An LP file also keeps our own variable names, where MPS renames them to
+    X0001 for the wire, so a crash left behind by some later model will at least
+    name what it was carrying.
+    """
+
+    def actualSolve(self, lp, **kwargs):
+        kwargs.setdefault("use_mps", False)
+        return self.solve_CBC(lp, **kwargs)
+
+
+def _cbc() -> pulp.LpSolver:
+    return _CbcViaLp(msg=0, timeLimit=config.SOLVE_TIMEOUT_SECONDS)
+
+
 @dataclass
 class SolveParams:
     store: str
@@ -306,7 +337,7 @@ def solve_plan(items: dict[str, Item], recipes: dict[str, Recipe],
     else:  # "cheapest"
         prob += b.net_cost
 
-    status = prob.solve(pulp.PULP_CBC_CMD(msg=0, timeLimit=config.SOLVE_TIMEOUT_SECONDS))
+    status = prob.solve(_cbc())
 
     # A time limit is not an infeasibility, and reporting one as the other is
     # the single thing SPEC §2 says an infeasible answer must never do. CBC
@@ -446,7 +477,7 @@ def cheapest_feasible_budget(items, recipes, params) -> float | None:
     """
     b = _build(items, recipes, params, enforce_budget=False)
     b.prob += b.pack_cost
-    status = b.prob.solve(pulp.PULP_CBC_CMD(msg=0, timeLimit=config.SOLVE_TIMEOUT_SECONDS))
+    status = b.prob.solve(_cbc())
     if pulp.LpStatus[status] != "Optimal":
         return None
     return round(float(pulp.value(b.pack_cost)), 2)
@@ -464,7 +495,7 @@ def diagnose(items, recipes, params) -> Infeasible:
     """
     b = _build(items, recipes, params, elastic=True)
     b.prob += pulp.lpSum(v * (1.0 / scale) for v, scale in b.slacks.values())
-    status = b.prob.solve(pulp.PULP_CBC_CMD(msg=0, timeLimit=config.SOLVE_TIMEOUT_SECONDS))
+    status = b.prob.solve(_cbc())
 
     if pulp.LpStatus[status] != "Optimal":
         # Even fully relaxed it will not solve — the catalogue itself is the problem.

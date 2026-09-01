@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 
 from . import config, filters
 from .catalogue import load
-from .model import (Infeasible, SolveParams, cheapest_feasible_budget,
+from .model import (Infeasible, SolveParams, _cbc, cheapest_feasible_budget,
                     solve_plan)
 from .schemas import SolveRequest
 
@@ -79,7 +79,7 @@ def _filtered(req: SolveRequest, items, recipes):
 def health():
     """Liveness. Reports CBC availability — a solver without CBC is not healthy."""
     try:
-        cbc_ok = pulp.PULP_CBC_CMD(msg=0).available()
+        cbc_ok = _cbc().available()
     except Exception:
         cbc_ok = False
     return {

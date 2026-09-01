@@ -115,15 +115,17 @@ def retrying(fn, *args, attempts: int = 3):
     """
     Run a CBC call, and if the binary itself falls over, run it again.
 
-    PulpSolverError here is not "no answer" — it is the cbc subprocess exiting
-    abnormally, which happens when several large MILPs are in flight at once.
-    It is transient by nature: the same model solves on the next attempt.
+    Insurance, not a diagnosis. This was written for a crash at combination 44
+    that looked like contention between parallel solves; it was not. CBC was
+    segfaulting on one specific model, deterministically, because of the MPS
+    file PuLP feeds it — see `_CbcViaLp` in app/model.py, which is the actual
+    fix. Retrying a deterministic segfault only made the export take three
+    times as long to fail.
 
-    This used to wrap only the per-budget solves, so a failure in the floor
-    computation — which runs first, for every combination — took the whole
-    export down with it. That is 128 combinations and the better part of an
-    hour lost to one subprocess. Raises if every attempt fails, so a model that
-    genuinely cannot be solved still surfaces rather than being swallowed.
+    It stays because a 128-combination export is most of an hour, and losing
+    all of it to one bad subprocess is a poor trade against three attempts.
+    Raises if every attempt fails, so a model that genuinely will not solve
+    still surfaces rather than being swallowed.
     """
     for attempt in range(1, attempts + 1):
         try:
