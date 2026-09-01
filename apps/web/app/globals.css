@@ -23,7 +23,6 @@
      floor and contrast all pass. Do not nudge these by eye. */
   --seg-eaten:#2A5FA8; --seg-cupboard:#1C7A57; --seg-wasted:#B0512A;
   --sans:var(--font-archivo),-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-  --mono:var(--font-plex-mono),ui-monospace,SFMono-Regular,Menlo,monospace;
 }
 
 @media (prefers-color-scheme:dark){
@@ -40,12 +39,16 @@
 body{background:var(--board);color:var(--ink);font-family:var(--sans);
   line-height:1.5;-webkit-font-smoothing:antialiased;margin:0}
 
-/* Ticket numerals: Archivo's width axis, pulled in a little. Prices read at a
-   glance; spec data stays monospaced, the way a receipt prints it. */
+/* Ticket numerals: Archivo's width axis, pulled in a little, so a price reads
+   at a glance the way a shelf-edge ticket is printed. Everything else on the
+   page is the same family — figures that have to line up in a column get
+   tabular-nums from it rather than a second webfont. */
 .tik{font-family:var(--sans);font-variation-settings:"wdth" 82,"wght" 750;
   font-stretch:82%;font-weight:750;letter-spacing:-.015em;font-variant-numeric:tabular-nums;
   line-height:1}
-.lab{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.1em;
+/* Small caps labels. Tracked just enough to stay legible at 10.5px, not the
+   .1em they used to carry, which made every one of them shout. */
+.lab{font-size:10.5px;font-weight:600;letter-spacing:.04em;
   text-transform:uppercase;color:var(--ink-2)}
 
 /* ---- page ---- */
@@ -65,10 +68,10 @@ body{background:var(--board);color:var(--ink);font-family:var(--sans);
   font-size:16px;line-height:1;cursor:pointer;padding:6px 8px;border-radius:8px}
 .back:hover{background:var(--paper-2)}
 .back[hidden]{display:none!important}
-.topbar .idx{margin-left:auto;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;
+.topbar .idx{margin-left:auto;font-variant-numeric:tabular-nums;font-size:10.5px;letter-spacing:.04em;
   color:var(--ink-2)}
 .rail{display:flex;gap:3px;padding:0 12px;margin-top:10px}
-.rail i{height:3px;flex:1;background:var(--rule);border-radius:99px;
+.rail i{height:2px;flex:1;background:var(--rule);border-radius:99px;
   transition:background .34s cubic-bezier(.22,.68,.28,1)}
 .rail i.on{background:var(--accent)}
 .rail[hidden]{display:none!important}
@@ -120,7 +123,7 @@ body{background:var(--board);color:var(--ink);font-family:var(--sans);
 .topbar .lab,.topbar .idx{animation:part-in .3s cubic-bezier(.22,.68,.28,1) both}
 .q{font-size:25px;margin:0 0 14px;letter-spacing:-.03em;font-weight:700;line-height:1.15;
   text-wrap:balance}
-.q .sm{display:block;font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.1em;
+.q .sm{display:block;font-variant-numeric:tabular-nums;font-size:10.5px;font-weight:500;letter-spacing:.04em;
   text-transform:uppercase;color:var(--ink-2);margin-bottom:6px}
 .qsub{margin:-8px 0 14px;font-size:13.5px;color:var(--ink-2)}
 
@@ -134,42 +137,53 @@ body{background:var(--board);color:var(--ink);font-family:var(--sans);
 .choice[aria-pressed="true"]{border-color:var(--accent);background:var(--soft)}
 .choice .nm{font-size:18px;font-weight:700;letter-spacing:-.025em;display:block}
 .choice .dt{font-size:12.5px;color:var(--ink-2);display:block;margin-top:1px}
-.choice .num{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-2);
+.choice .num{margin-left:auto;font-variant-numeric:tabular-nums;font-size:11px;color:var(--ink-2);
   text-align:right;white-space:nowrap;line-height:1.4}
 
-/* ---- pastel tiles: the pick-many screens ---- */
+/* ---- cards: the pick-many screens ----
+   These were pastel-filled. The fills carried no meaning — Aldi was blue and
+   Tesco pink because something had to be — and eight of them at once read as
+   decoration rather than as one set of choices. One surface, one border, and
+   the only colour on the screen is the one that means "chosen".
+
+   The border width does not change between states, so selecting a card never
+   moves the grid under your finger. */
 .tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .tiles.wide{grid-template-columns:1fr}
 .tile{appearance:none;cursor:pointer;font-family:var(--sans);color:var(--ink);
-  border:2.5px solid transparent;border-radius:16px;padding:18px 10px 14px;text-align:center;
+  background:var(--paper);border:1.5px solid var(--rule);border-radius:14px;
+  padding:18px 10px 14px;text-align:center;
   display:flex;flex-direction:column;align-items:center;gap:7px;min-height:96px;
-  justify-content:center;transition:border-color .12s,transform .08s}
-.tile:hover{transform:translateY(-1px)}
+  justify-content:center;
+  transition:border-color .14s,background .14s,box-shadow .14s,transform .08s}
+.tile:hover:not([disabled]){border-color:var(--ink-2);transform:translateY(-1px)}
 .tile:active{transform:none}
-.tile:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
-.tile[aria-pressed="true"]{border-color:var(--accent)}
+.tile:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+/* The second, inset ring is what gives a chosen card the weight the old 2.5px
+   border had, without a border width that reflows the row. */
+.tile[aria-pressed="true"]{border-color:var(--accent);background:var(--soft);
+  box-shadow:inset 0 0 0 1px var(--accent)}
 .tile .emo{font-size:26px;line-height:1}
 .tile .t{font-size:15px;font-weight:700;letter-spacing:-.02em}
-.tile .s{font-size:11px;color:#43474F;margin-top:-3px}
-.tile[disabled]{cursor:not-allowed;opacity:.45}
-.tile[disabled]:hover{transform:none}
-/* Pastel fills. Label text is always --ink, which clears 4.5:1 on every one. */
-.c1{background:#FBD5DA} .c2{background:#FBDCC0} .c3{background:#FBEEB5}
-.c4{background:#CFE4FB} .c5{background:#E0D8FB} .c6{background:#C6EDE4}
-.c7{background:#D9EFC9} .c8{background:#D9DCFA} .c9{background:#F5E6D0}
-.c0{background:var(--paper-2)}
-/* The pastel fills do not change with the theme, so neither does their text. */
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .tile{color:#14161A}}
-:root[data-theme="dark"] .tile{color:#14161A}
-/* ...except the unpriced tile, which is a themed surface rather than a pastel. */
-.tile.c0{color:var(--ink)} .tile.c0 .s{color:var(--ink-2)}
+.tile .s{font-size:11px;color:var(--ink-2);margin-top:-3px}
+
+/* A shop with no prices is not a shop you can plan with, and the card should
+   say which. Dropping the whole card to 50% opacity takes its label under
+   4.5:1 against the page, so the card recedes onto the secondary surface and
+   the tag does the explaining — the text stays readable, which was the point. */
+.tile[disabled]{cursor:not-allowed;background:var(--paper-2);box-shadow:none}
+.tile[disabled] .t{color:var(--ink-2)}
+.tile[disabled]:hover{transform:none;border-color:var(--rule)}
+.tag{display:inline-block;font-size:9.5px;font-weight:600;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--ink-2);background:var(--paper);
+  border:1px solid var(--rule);border-radius:99px;padding:2px 8px}
 
 /* How many recipes survive the filters so far. With 24 of them a stacked
    filter set empties a meal slot quickly, and finding that out only at the end
    is a dead end. */
 .counter{display:flex;align-items:center;gap:8px;margin-top:14px;padding:9px 12px;
   border-radius:10px;background:var(--paper-2);font-size:12.5px;color:var(--ink-2)}
-.counter b{font-family:var(--mono);font-weight:600;color:var(--ink)}
+.counter b{font-variant-numeric:tabular-nums;font-weight:600;color:var(--ink)}
 .counter.bad{background:var(--red-bg);color:var(--red)}
 .counter.bad b{color:var(--red)}
 .caveat{font-size:11.5px;color:var(--ink-2);line-height:1.5;margin:12px 0 0;
@@ -177,10 +191,12 @@ body{background:var(--board);color:var(--ink);font-family:var(--sans);
 .caveat b{color:var(--ink)}
 
 /* ---- sliders ---- */
-.readout{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
-  margin:4px 0 2px}
-.readout .big{font-size:52px}
-.readout .rt{text-align:right;padding-bottom:5px}
+/* The count used to sit on the right edge, level with the foot of the giant
+   number, which read as two unrelated things sharing a line. It is a caption
+   for that number, so it goes under it and gets caption size and colour. */
+.readout{margin:4px 0 2px}
+.readout .big{font-size:52px;display:block;line-height:1.02}
+.readout .rt{display:block;font-size:12.5px;color:var(--ink-2);margin-top:5px}
 .track{position:relative;padding:16px 0 4px}
 /* A thick track and a big thumb, driven at a fine step so the thumb travels with
    the finger instead of hopping between a handful of stops. The old budget
@@ -192,11 +208,14 @@ input[type=range]::-webkit-slider-runnable-track{height:14px;border-radius:99px;
   background:linear-gradient(to right,var(--accent) var(--pct,50%),var(--rule) var(--pct,50%))}
 input[type=range]::-moz-range-track{height:14px;border-radius:99px;background:var(--rule)}
 input[type=range]::-moz-range-progress{height:14px;border-radius:99px;background:var(--accent)}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:34px;height:34px;
-  border-radius:50%;background:var(--paper);border:3px solid var(--accent);margin-top:-10px;
-  box-shadow:0 2px 6px rgba(0,0,0,.18)}
-input[type=range]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;
-  background:var(--paper);border:3px solid var(--accent);box-shadow:0 2px 6px rgba(0,0,0,.18)}
+/* A plain white disc lifted off the track by its shadow. The green ring it used
+   to wear repeated the colour of the filled track directly underneath it, so
+   the thumb read as part of the fill rather than as the thing you drag. */
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:32px;height:32px;
+  border-radius:50%;background:#fff;border:0;margin-top:-9px;
+  box-shadow:0 2px 8px rgba(0,0,0,.15)}
+input[type=range]::-moz-range-thumb{width:32px;height:32px;border-radius:50%;
+  background:#fff;border:0;box-shadow:0 2px 8px rgba(0,0,0,.15)}
 input[type=range]:active::-webkit-slider-thumb{transform:scale(1.06)}
 input[type=range]:focus-visible{outline:3px solid var(--accent);outline-offset:4px;
   border-radius:99px}
@@ -205,17 +224,17 @@ input[type=range]:focus-visible{outline:3px solid var(--accent);outline-offset:4
 .floorpin{position:absolute;top:21px;height:34px;width:2px;background:var(--ink);
   opacity:.45;pointer-events:none;transform:translateX(-1px)}
 .floorpin b{position:absolute;top:-15px;left:50%;transform:translateX(-50%);
-  font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;white-space:nowrap;
+  font-variant-numeric:tabular-nums;font-size:9.5px;letter-spacing:.04em;white-space:nowrap;
   color:var(--ink-2);font-weight:500}
-.scale{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;
+.scale{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;font-size:10.5px;
   color:var(--ink-2);margin-top:2px}
-.snap{font-family:var(--mono);font-size:10.5px;letter-spacing:.02em;color:var(--ink-2);
+.snap{font-variant-numeric:tabular-nums;font-size:10.5px;letter-spacing:.02em;color:var(--ink-2);
   margin:8px 0 0}
 
 .floormark{margin-top:14px;padding:10px 12px;border-radius:10px;font-size:12.5px;
   background:var(--paper-2);color:var(--ink-2);line-height:1.5}
 .floormark.under{background:var(--red-bg);color:var(--red)}
-.floormark b{font-family:var(--mono);font-weight:600}
+.floormark b{font-variant-numeric:tabular-nums;font-weight:600}
 
 .cta{margin-top:auto;padding-top:18px}
 .btn{appearance:none;width:100%;cursor:pointer;font-family:var(--sans);font-size:15.5px;
@@ -276,7 +295,7 @@ input[type=range]:focus-visible{outline:3px solid var(--accent);outline-offset:4
 .split .hero{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
   margin-bottom:12px}
 .split .hero .n{font-size:50px}
-.split .hero .l{font-family:var(--mono);font-size:10.5px;letter-spacing:.09em;
+.split .hero .l{font-variant-numeric:tabular-nums;font-size:10.5px;letter-spacing:.04em;
   text-transform:uppercase;color:var(--ink-2);text-align:right;line-height:1.5;padding-bottom:5px}
 .costbar{display:flex;align-items:stretch;height:14px;gap:2px;border-radius:99px;overflow:hidden}
 .costbar span{display:block;min-width:3px;height:100%}
@@ -287,9 +306,9 @@ input[type=range]:focus-visible{outline:3px solid var(--accent);outline-offset:4
 .key-list div{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--ink-2)}
 .key-list i{width:10px;height:10px;border-radius:3px;flex-shrink:0}
 .key-list .nm{flex:1}
-.key-list b{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--ink);
+.key-list b{font-variant-numeric:tabular-nums;font-size:12.5px;font-weight:600;color:var(--ink);
   font-variant-numeric:tabular-nums}
-.key-list .pc{font-family:var(--mono);font-size:10.5px;width:32px;text-align:right}
+.key-list .pc{font-variant-numeric:tabular-nums;font-size:10.5px;width:32px;text-align:right}
 .split .caption{font-size:12px;color:var(--ink-2);margin:11px 0 0;line-height:1.5}
 
 .tabs{display:grid;grid-template-columns:1fr 1fr;gap:3px;background:var(--paper-2);
@@ -312,8 +331,8 @@ input[type=range]:focus-visible{outline:3px solid var(--accent);outline-offset:4
 .pane:focus-visible{outline:3px solid var(--accent);outline-offset:-3px;border-radius:8px}
 .pane[hidden]{display:none!important}
 
-.slot-head{background:var(--paper-2);border-radius:7px;font-family:var(--mono);font-size:10.5px;
-  letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);padding:5px 9px;margin:12px 0 2px;
+.slot-head{background:var(--paper-2);border-radius:7px;font-variant-numeric:tabular-nums;font-size:10.5px;
+  letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2);padding:5px 9px;margin:12px 0 2px;
   display:flex;justify-content:space-between}
 .slot-head:first-child{margin-top:4px}
 .meal{border-bottom:1px solid var(--rule)}
@@ -333,10 +352,10 @@ span.shot{display:flex;align-items:center;justify-content:center;
   border:1px dashed var(--rule);background:var(--paper)}
 span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
   background:var(--rule)}
-.mult{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--accent);
+.mult{font-variant-numeric:tabular-nums;font-size:12px;font-weight:600;color:var(--accent);
   background:var(--soft);border-radius:6px;padding:3px 6px;flex-shrink:0;line-height:1}
 .meal .nm{font-size:14.5px;font-weight:600;flex:1;letter-spacing:-.02em;line-height:1.3}
-.meal .mac{font-family:var(--mono);font-size:10.5px;color:var(--ink-2);text-align:right;
+.meal .mac{font-variant-numeric:tabular-nums;font-size:10.5px;color:var(--ink-2);text-align:right;
   white-space:nowrap;font-variant-numeric:tabular-nums;line-height:1.45}
 .chev{color:var(--ink-2);font-size:10px;transition:transform .15s;flex-shrink:0}
 .meal[open] .chev{transform:rotate(90deg)}
@@ -344,12 +363,12 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
 .method .desc{font-size:12.5px;color:var(--ink-2);margin:0 0 9px}
 .method ol{margin:0;padding-left:17px;display:flex;flex-direction:column;gap:6px}
 .method li{font-size:13px;line-height:1.5}
-.method li::marker{font-family:var(--mono);font-size:11px;color:var(--ink-2)}
-.method .src{font-family:var(--mono);font-size:10.5px;color:var(--ink-2);margin:10px 0 0;
+.method li::marker{font-variant-numeric:tabular-nums;font-size:11px;color:var(--ink-2)}
+.method .src{font-variant-numeric:tabular-nums;font-size:10.5px;color:var(--ink-2);margin:10px 0 0;
   padding-top:8px;border-top:1px solid var(--rule);letter-spacing:.02em}
 
-.aisle{background:var(--paper-2);border-radius:7px;font-family:var(--mono);font-size:10.5px;
-  letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);padding:5px 9px;margin-top:12px;
+.aisle{background:var(--paper-2);border-radius:7px;font-variant-numeric:tabular-nums;font-size:10.5px;
+  letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2);padding:5px 9px;margin-top:12px;
   position:sticky;top:0;z-index:1}
 .line{display:flex;gap:11px;align-items:baseline;padding:9px 2px;
   border-bottom:1px solid var(--rule);cursor:pointer}
@@ -357,18 +376,18 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
   position:relative;top:3px;cursor:pointer}
 .line.ticked .lbl,.line.ticked .amt{opacity:.4;text-decoration:line-through}
 .line .lbl{flex:1;font-size:13.5px;letter-spacing:-.015em;font-weight:500}
-.line .qty{font-family:var(--mono);font-size:10.5px;color:var(--ink-2);display:block;margin-top:2px;
+.line .qty{font-variant-numeric:tabular-nums;font-size:10.5px;color:var(--ink-2);display:block;margin-top:2px;
   text-decoration:none!important;letter-spacing:.02em}
-.line .amt{font-family:var(--mono);font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;
+.line .amt{font-variant-numeric:tabular-nums;font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;
   white-space:nowrap}
-.pill{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.03em;
+.pill{display:inline-block;font-variant-numeric:tabular-nums;font-size:10px;letter-spacing:.03em;
   padding:1px 6px;border-radius:5px;margin-left:6px;vertical-align:1px;background:var(--paper-2)}
 .pill.carry{color:var(--green)}
 .pill.waste{color:var(--seg-wasted)}
 .tally{display:flex;justify-content:space-between;align-items:flex-end;margin-top:14px;
   padding-top:12px;border-top:1px solid var(--rule)}
 .tally .n{font-size:24px}
-.tally .l{font-family:var(--mono);font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+.tally .l{font-variant-numeric:tabular-nums;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;
   color:var(--ink-2);padding-bottom:5px}
 
 /* ---- infeasible ---- */
@@ -377,7 +396,7 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
 .stop h3{margin:0 0 7px;font-size:17px;color:var(--red);letter-spacing:-.02em;font-weight:700}
 .stop p{margin:0 0 10px;font-size:13.5px;color:var(--ink);line-height:1.5}
 .stop p:last-child{margin-bottom:0}
-.blocker{font-family:var(--mono);font-size:10.5px;background:var(--paper);border-radius:6px;
+.blocker{font-variant-numeric:tabular-nums;font-size:10.5px;background:var(--paper);border-radius:6px;
   border:1px solid var(--rule);padding:2px 7px;display:inline-block;margin:0 3px 4px 0}
 
 .note{font-size:11.5px;color:var(--ink-2);margin-top:12px;padding-top:10px;
@@ -397,11 +416,11 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
 .card[open]>summary .mark{transform:rotate(90deg)}
 .card[open]>summary{border-bottom:1px solid var(--rule)}
 .card .body{padding:14px}
-.kv{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-family:var(--mono);
+.kv{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-variant-numeric:tabular-nums;
   font-size:11.5px;margin:0}
 .kv dt{color:var(--ink-2);white-space:nowrap}
 .kv dd{margin:0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-.status{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.09em;
+.status{display:inline-block;font-variant-numeric:tabular-nums;font-size:10.5px;letter-spacing:.04em;
   text-transform:uppercase;padding:2px 8px;border-radius:5px;font-weight:600;background:var(--paper-2)}
 .status.ok{color:var(--green)}
 .status.no{color:var(--red)}
@@ -409,7 +428,7 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
 .facts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:11px}
 .facts li{font-size:13px;color:var(--ink-2);line-height:1.5;display:flex;gap:10px}
 .facts li b{color:var(--ink);font-weight:700}
-.facts .h{font-family:var(--mono);font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+.facts .h{font-variant-numeric:tabular-nums;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;
   color:var(--ink);flex:0 0 72px;padding-top:2px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
@@ -430,5 +449,4 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
   --color-red-bg: var(--red-bg);
   --color-green: var(--green);
   --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, monospace;
 }

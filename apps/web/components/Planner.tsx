@@ -72,6 +72,18 @@ function toggle<T>(list: T[], key: T): T[] {
 }
 
 const money = (n: number) => `£${n.toFixed(2)}`;
+
+/**
+ * A price, or nothing at all.
+ *
+ * `CatalogueItem.price` is typed as a number, which is a claim about the
+ * solver's contract rather than about what arrives over the wire: a row whose
+ * price has not been observed comes back null and `money(null)` prints "£NaN"
+ * on the card. Rule 3 says an unknown price is excluded, not guessed, and a
+ * card with no price line is the honest version of that.
+ */
+const priceOf = (n: unknown) =>
+  typeof n === "number" && Number.isFinite(n) ? money(n) : null;
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
 /** The message the route handler sent, or a fallback if it sent nothing usable. */
@@ -398,20 +410,24 @@ export function Planner() {
             {ALL_STORES.map((s) => (
               <button
                 key={s.slug}
-                className={`tile ${s.priced ? s.colour : "c0"}`}
+                className="tile"
                 aria-pressed={store === s.slug}
                 disabled={!s.priced}
                 onClick={() => setStore(s.slug)}
               >
                 <span className="t">{s.name}</span>
-                <span className="s">{s.priced ? "28 items priced" : "no prices yet"}</span>
+                {s.priced ? (
+                  <span className="s">28 items priced</span>
+                ) : (
+                  <span className="tag">Coming soon</span>
+                )}
               </button>
             ))}
           </div>
           <p className="caveat">
-            Only Aldi and Tesco carry real prices so far. The rest are greyed out
-            rather than hidden: planning them with another shop&apos;s numbers would
-            break the one thing this app promises.
+            Only Aldi and Tesco carry real prices so far. The rest are listed
+            rather than hidden, and say so: planning them with another shop&apos;s
+            numbers would break the one thing this app promises.
           </p>
         </Screen>
       )}
@@ -449,17 +465,20 @@ export function Planner() {
             <div className="tiles">
               {catalogue
                 .filter((i) => i.carries)
-                .map((i, n) => (
-                  <button
-                    key={i.slug}
-                    className={`tile c${(n % 9) + 1}`}
-                    aria-pressed={inCupboard.includes(i.slug)}
-                    onClick={() => setInCupboard(toggle(inCupboard, i.slug))}
-                  >
-                    <span className="t">{i.name}</span>
-                    <span className="s">{money(i.price)} a pack</span>
-                  </button>
-                ))}
+                .map((i) => {
+                  const price = priceOf(i.price);
+                  return (
+                    <button
+                      key={i.slug}
+                      className="tile"
+                      aria-pressed={inCupboard.includes(i.slug)}
+                      onClick={() => setInCupboard(toggle(inCupboard, i.slug))}
+                    >
+                      <span className="t">{i.name}</span>
+                      {price && <span className="s">{price} a pack</span>}
+                    </button>
+                  );
+                })}
             </div>
           )}
           <p className="caveat">
@@ -541,11 +560,7 @@ export function Planner() {
                 ? `${days / 7} ${days === 7 ? "week" : "weeks"}`
                 : `${days} ${days === 1 ? "day" : "days"}`}
             </span>
-            <span className="rt lab">
-              {plural(days * 3, "meal")}
-              <br />
-              for one
-            </span>
+            <span className="rt">{plural(days * 3, "meal")} for one</span>
           </div>
           {/* Every day from one to a fortnight. Six named stops was an
               invention — the solver accepts any length in that range, so
@@ -583,12 +598,8 @@ export function Planner() {
         >
           <div className="readout">
             <span className="tik big">{money(budget).replace(/\.00$/, "")}</span>
-            <span className="rt lab">
-              For one
-              <br />
-              at {storeName}
-              <br />
-              {days === 1 ? "1 day" : plural(days, "day")}
+            <span className="rt">
+              For one at {storeName}, {days === 1 ? "1 day" : plural(days, "day")}
             </span>
           </div>
           <Slider
@@ -817,7 +828,7 @@ function TileGrid<T extends string>({
       {tiles.map((t) => (
         <button
           key={t.key}
-          className={`tile ${t.colour}`}
+          className="tile"
           aria-pressed={selected.includes(t.key)}
           onClick={() => onToggle(t.key)}
         >

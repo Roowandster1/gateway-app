@@ -23,15 +23,15 @@ theme = '''
   --color-red-bg: var(--red-bg);
   --color-green: var(--green);
   --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, monospace;
 }
 '''
+# One family now: the mono went when the type was standardised, and with it the
+# second webfont this used to bridge.
 css = css.replace(
-    '--sans:"Archivo",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;\n'
-    '  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;',
-    '--sans:var(--font-archivo),-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;\n'
-    '  --mono:var(--font-plex-mono),ui-monospace,SFMono-Regular,Menlo,monospace;')
+    '--sans:"Archivo",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;',
+    '--sans:var(--font-archivo),-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;')
 assert 'var(--font-archivo)' in css, 'font token bridge missing'
+assert '--mono' not in css, 'a mono token survived in the template'
 
 # The palette picker was a decision aid while the colour was being chosen. It has
 # been removed from the demo, so this strips nothing now — kept as a no-op guard

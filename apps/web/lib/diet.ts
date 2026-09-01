@@ -14,10 +14,6 @@
  *   method, vegetarian is already tagged. "Family favourite" and "gut friendly"
  *   would be a language model's opinion dressed as data, which CLAUDE.md rule 1
  *   rules out of the selection path.
- *
- * The colour classes are the pastel tile fills in globals.css. They carry no
- * meaning — every tile is labelled — and dark `--ink` text clears 4.5:1 on all
- * of them.
  */
 
 export type Allergen = "gluten" | "dairy" | "egg" | "fish" | "peanut";
@@ -30,35 +26,34 @@ export interface Tile<T> {
   emoji: string;
   label: string;
   sub?: string;
-  colour: string;
 }
 
 export const APPLIANCES: Tile<Appliance>[] = [
-  { key: "hob", emoji: "🔥", label: "Hob", sub: "18 recipes", colour: "c2" },
-  { key: "oven", emoji: "🔲", label: "Oven", sub: "2 recipes", colour: "c4" },
-  { key: "microwave", emoji: "📻", label: "Microwave", sub: "jacket only", colour: "c5" },
-  { key: "airfryer", emoji: "🌀", label: "Air fryer", sub: "does the oven's job", colour: "c6" },
+  { key: "hob", emoji: "🔥", label: "Hob", sub: "18 recipes" },
+  { key: "oven", emoji: "🔲", label: "Oven", sub: "2 recipes" },
+  { key: "microwave", emoji: "📻", label: "Microwave", sub: "jacket only" },
+  { key: "airfryer", emoji: "🌀", label: "Air fryer", sub: "does the oven's job" },
 ];
 
 export const PROTEINS: Tile<Protein>[] = [
-  { key: "chicken", emoji: "🍗", label: "Chicken", colour: "c3" },
-  { key: "beef", emoji: "🥩", label: "Beef", colour: "c1" },
-  { key: "fish", emoji: "🐟", label: "Fish", colour: "c4" },
-  { key: "egg", emoji: "🥚", label: "Eggs", colour: "c9" },
+  { key: "chicken", emoji: "🍗", label: "Chicken" },
+  { key: "beef", emoji: "🥩", label: "Beef" },
+  { key: "fish", emoji: "🐟", label: "Fish" },
+  { key: "egg", emoji: "🥚", label: "Eggs" },
 ];
 
 export const ALLERGENS: Tile<Allergen>[] = [
-  { key: "gluten", emoji: "🌾", label: "Gluten free", colour: "c3" },
-  { key: "dairy", emoji: "🥛", label: "Dairy free", colour: "c5" },
-  { key: "egg", emoji: "🥚", label: "Egg free", colour: "c9" },
-  { key: "fish", emoji: "🐟", label: "Fish free", colour: "c4" },
-  { key: "peanut", emoji: "🥜", label: "Peanut free", colour: "c2" },
+  { key: "gluten", emoji: "🌾", label: "Gluten free" },
+  { key: "dairy", emoji: "🥛", label: "Dairy free" },
+  { key: "egg", emoji: "🥚", label: "Egg free" },
+  { key: "fish", emoji: "🐟", label: "Fish free" },
+  { key: "peanut", emoji: "🥜", label: "Peanut free" },
 ];
 
 export const STYLES: Tile<Style>[] = [
-  { key: "speedy", emoji: "⚡", label: "Speedy", sub: "15 min or less", colour: "c5" },
-  { key: "onepot", emoji: "🍲", label: "One pot", sub: "one pan, one wash", colour: "c6" },
-  { key: "veggie", emoji: "🥦", label: "Veggie", sub: "no meat or fish", colour: "c7" },
+  { key: "speedy", emoji: "⚡", label: "Speedy", sub: "15 min or less" },
+  { key: "onepot", emoji: "🍲", label: "One pot", sub: "one pan, one wash" },
+  { key: "veggie", emoji: "🥦", label: "Veggie", sub: "no meat or fish" },
 ];
 
 /**
@@ -75,15 +70,15 @@ export const STYLES: Tile<Style>[] = [
  * nobody here has answered.
  */
 export const ALL_STORES = [
-  { slug: "aldi", name: "Aldi", priced: true, colour: "c4" },
-  { slug: "tesco", name: "Tesco", priced: true, colour: "c1" },
-  { slug: "sainsburys", name: "Sainsbury's", priced: false, colour: "c2" },
-  { slug: "asda", name: "Asda", priced: false, colour: "c7" },
-  { slug: "morrisons", name: "Morrisons", priced: false, colour: "c3" },
-  { slug: "lidl", name: "Lidl", priced: false, colour: "c8" },
-  { slug: "coop", name: "Co-op", priced: false, colour: "c6" },
-  { slug: "mands", name: "M&S", priced: false, colour: "c5" },
-  { slug: "waitrose", name: "Waitrose", priced: false, colour: "c9" },
+  { slug: "aldi", name: "Aldi", priced: true },
+  { slug: "tesco", name: "Tesco", priced: true },
+  { slug: "sainsburys", name: "Sainsbury's", priced: false },
+  { slug: "asda", name: "Asda", priced: false },
+  { slug: "morrisons", name: "Morrisons", priced: false },
+  { slug: "lidl", name: "Lidl", priced: false },
+  { slug: "coop", name: "Co-op", priced: false },
+  { slug: "mands", name: "M&S", priced: false },
+  { slug: "waitrose", name: "Waitrose", priced: false },
 ] as const;
 
 export const TOTAL_RECIPES = 24;
