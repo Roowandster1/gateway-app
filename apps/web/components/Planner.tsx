@@ -36,10 +36,11 @@ const STEPS = [
   "days",
   "budget",
   "goal",
+  "building",
   "plan",
 ] as const;
 type Step = (typeof STEPS)[number];
-const LAST_QUESTION = STEPS.length - 2;
+const LAST_QUESTION = STEPS.length - 3;
 
 const STEP_NAMES: Record<Step, string> = {
   store: "Where you shop",
@@ -51,8 +52,19 @@ const STEP_NAMES: Record<Step, string> = {
   days: "How long for",
   budget: "The budget",
   goal: "What you're eating for",
+  building: "Building",
   plan: "Your plan",
 };
+
+const BUILD_STEPS = [
+  "Matching meals to your shop and budget",
+  "Counting whole packs, not grams",
+  "Lining up the week's dinners",
+  "Putting the shopping list together",
+];
+/** How long the build screen runs before it will hand over, if the solve is done. */
+const BUILD_MS = 10_000;
+const FALLING = ["🥕", "🌶️", "🥦", "🍅", "🧅", "🥚", "🍞", "🧀", "🍌", "🛒", "🥔", "🫘", "🍚", "🥫"];
 
 /** Toggles a key in a Set-like array, keeping the order stable. */
 function toggle<T>(list: T[], key: T): T[] {
@@ -291,6 +303,12 @@ export function Planner() {
     setBusy(true);
     setError(null);
     setTicked({});
+    setStep("building");
+    // Both have to finish: the solve, and the ten seconds the screen runs for.
+    // A cached solve returns in milliseconds and a cold one can take most of a
+    // minute, so whichever is slower decides — the screen never cuts a solve
+    // short, and never claims to be done before it is.
+    const shown = new Promise((r) => setTimeout(r, BUILD_MS));
     try {
       const res = await fetch("/api/solve", {
         method: "POST",
@@ -299,13 +317,18 @@ export function Planner() {
       });
       const data = (await res.json()) as SolveResult | SolverError;
       if (!res.ok || (data.status !== "ok" && data.status !== "infeasible")) {
+        await shown;
         setError(detailOf(data));
+        setStep("goal");
         return;
       }
+      await shown;
       setResult(data);
       setStep("plan");
     } catch {
+      await shown;
       setError("Could not reach the solver.");
+      setStep("goal");
     } finally {
       setBusy(false);
     }
@@ -328,7 +351,13 @@ export function Planner() {
         )}
         <span className="lab">{STEP_NAMES[step]}</span>
         <span className="idx">
-          {ix <= LAST_QUESTION ? `${ix + 1} of ${LAST_QUESTION + 1}` : plan ? "Solved" : "No fit"}
+          {ix <= LAST_QUESTION
+            ? `${ix + 1} of ${LAST_QUESTION + 1}`
+            : step === "building"
+              ? ""
+              : plan
+                ? "Solved"
+                : "No fit"}
         </span>
       </div>
       {ix <= LAST_QUESTION && (
@@ -602,6 +631,8 @@ export function Planner() {
         </Screen>
       )}
 
+      {step === "building" && <Building />}
+
       {step === "plan" && (
         <PlanScreen
           result={result}
@@ -634,6 +665,90 @@ export function Planner() {
 }
 
 /* ---------- pieces ---------- */
+
+type Drop = {
+  emoji: string;
+  left: string;
+  duration: string;
+  delay: string;
+  spin: string;
+  opacity: number;
+};
+
+/** Eighteen groceries, each given its own lane, speed, spin and head start. */
+const makeDrops = (): Drop[] =>
+  Array.from({ length: 18 }, () => ({
+    emoji: FALLING[Math.floor(Math.random() * FALLING.length)],
+    left: `${Math.random() * 88 + 3}%`,
+    duration: `${(2.6 + Math.random() * 2.6).toFixed(2)}s`,
+    delay: `${((Math.random() * BUILD_MS) / 1000).toFixed(2)}s`,
+    spin: `${Math.round(Math.random() * 300 - 150)}deg`,
+    opacity: 0.5 + Math.random() * 0.5,
+  }));
+
+/**
+ * The pause after the last answer.
+ *
+ * Partly theatre — a cached solve is instant — but it is the moment the app
+ * earns its keep, and four real steps ticking past reads better than a plan
+ * appearing from nowhere. The bar tracks the timer; `buildPlan` waits on both
+ * the timer and the solver, so a slow solve simply holds the screen longer.
+ */
+function Building() {
+  const [done, setDone] = useState(0);
+
+  useEffect(() => {
+    const timers = BUILD_STEPS.map((_, i) =>
+      setTimeout(() => setDone(i + 1), (BUILD_MS * (i + 1)) / BUILD_STEPS.length),
+    );
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
+  // Drawn once per mount, through the lazy initialiser rather than in the render
+  // body: randomness during render is impure, and re-rolling on every tick of the
+  // bar would restart all eighteen animations four times.
+  const [drops] = useState(makeDrops);
+
+  return (
+    <section className="screen" style={{ padding: 0 }}>
+      <div className="building">
+        <div className="fallzone" aria-hidden>
+          {drops.map((d, i) => (
+            <span
+              key={i}
+              className="fall"
+              style={
+                {
+                  left: d.left,
+                  animationDuration: d.duration,
+                  animationDelay: d.delay,
+                  opacity: d.opacity,
+                  "--spin": d.spin,
+                } as React.CSSProperties
+              }
+            >
+              {d.emoji}
+            </span>
+          ))}
+        </div>
+        <h2>Building your week…</h2>
+        <div className="buildbar">
+          <i style={{ width: `${(done / BUILD_STEPS.length) * 100}%` }} />
+        </div>
+        <ul className="steps">
+          {BUILD_STEPS.map((t, i) => (
+            <li key={t} className={i < done ? "on" : undefined}>
+              <span className="tick" aria-hidden>
+                ✓
+              </span>
+              {t}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
 
 function Screen({
   eyebrow,

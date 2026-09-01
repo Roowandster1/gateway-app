@@ -13,7 +13,6 @@
    Clean, light, one brand colour. Density and honest numbers come from the
    product; the surface stays quiet. Hairline rules, soft corners, no heavy
    black slabs — the previous pass over-corrected into brutalism.
-   The accent is switchable while the palette is being chosen; see .picker.
    ========================================================================== */
 :root{
   --board:#F2F4F1; --paper:#FFFFFF; --paper-2:#F6F7F5;
@@ -28,9 +27,6 @@
   --sans:"Archivo",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
 }
-:root[data-palette="blue"]  {--accent:#1F53D6; --soft:#E8EDFC; --green:#12805A; --board:#F1F3F7}
-:root[data-palette="orange"]{--accent:#C0521E; --soft:#FBEBE1; --green:#12805A; --board:#F6F3EF}
-:root[data-palette="violet"]{--accent:#5B34C8; --soft:#EDE7FA; --green:#12805A; --board:#F3F2F7}
 
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
@@ -40,9 +36,6 @@
     --red:#F0736C; --red-bg:#2B1514; --green:#3DBE8C;
     --seg-eaten:#5590D6; --seg-cupboard:#35A87C; --seg-wasted:#D0733F;
   }
-  :root:not([data-theme="light"])[data-palette="blue"]  {--accent:#6E9BFF; --soft:#13203A; --on-accent:#05122E}
-  :root:not([data-theme="light"])[data-palette="orange"]{--accent:#E5905C; --soft:#2C1D14; --on-accent:#241004}
-  :root:not([data-theme="light"])[data-palette="violet"]{--accent:#A48CF5; --soft:#1D1734; --on-accent:#120A2C}
 }
 
 *{box-sizing:border-box}
@@ -64,16 +57,6 @@ body{background:var(--board);color:var(--ink);font-family:var(--sans);
 .masthead p{margin:0;font-size:13px;color:var(--ink-2)}
 .cols{display:grid;grid-template-columns:minmax(0,398px) minmax(0,1fr);gap:24px;align-items:start}
 @media (max-width:860px){.cols{grid-template-columns:1fr;gap:16px}}
-
-/* ---- palette picker: a decision aid, not part of the product ---- */
-.picker{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 16px;
-  padding:9px 12px;background:var(--paper);border:1px solid var(--rule);border-radius:10px}
-.picker .lab{margin-right:2px}
-.sw{appearance:none;cursor:pointer;width:30px;height:30px;border-radius:50%;
-  border:2px solid var(--rule);padding:0}
-.sw[aria-pressed="true"]{border-color:var(--ink);box-shadow:0 0 0 2px var(--paper) inset}
-.sw:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
-.picker small{font-size:11.5px;color:var(--ink-2);flex:1;min-width:150px}
 
 /* ---- the app ---- */
 .phone{background:var(--paper);border:1px solid var(--rule);border-radius:14px;
@@ -201,6 +184,48 @@ input[type=range]:focus-visible{outline:3px solid var(--accent);outline-offset:4
 .btn:disabled{opacity:.4;cursor:default}
 .btn.ghost{background:var(--paper);color:var(--ink);border-color:var(--rule)}
 .btn.ghost:hover{background:var(--paper-2);filter:none}
+
+/* ---- building your week ----
+   A deliberate pause after the last answer. The solve itself is often instant
+   once cached, so this is partly theatre — but it is the moment the app earns
+   its keep, and watching four real steps tick past reads better than a plan
+   appearing out of nowhere. The bar walks to 90% on a timer and only finishes
+   when the solver actually answers, so it never claims to be done first. */
+.building{flex:1;display:flex;flex-direction:column;position:relative;overflow:hidden;
+  padding:26px 18px 20px}
+/* Same ground as .steps below: the groceries fall past the heading, not over
+   the top of it — an onion landing on the word "week" reads as a bug. */
+.building h2{font-size:27px;font-weight:700;letter-spacing:-.03em;margin:0 0 20px;
+  line-height:1.15;position:relative;z-index:1;
+  background:var(--paper);box-shadow:0 0 20px 14px var(--paper)}
+.fallzone{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0}
+.fall{position:absolute;top:-48px;font-size:30px;line-height:1;
+  animation-name:fall;animation-timing-function:linear;animation-iteration-count:infinite}
+@keyframes fall{
+  from{transform:translateY(0) rotate(0deg)}
+  to{transform:translateY(760px) rotate(var(--spin,140deg))}
+}
+.buildbar{height:10px;border-radius:99px;background:var(--rule);overflow:hidden;
+  position:relative;z-index:1}
+.buildbar i{display:block;height:100%;border-radius:99px;background:var(--accent);
+  width:0;transition:width .45s ease}
+/* The groceries fall behind this, so it needs its own ground or the text sits
+   in a shower of tomatoes. */
+.steps{list-style:none;margin:auto 0 0;padding:16px 14px;display:flex;
+  flex-direction:column;gap:13px;position:relative;z-index:1;
+  background:var(--paper);border-radius:14px;box-shadow:0 0 22px 18px var(--paper)}
+.steps li{display:flex;align-items:center;gap:11px;font-size:14.5px;color:var(--ink-2);
+  transition:color .3s}
+.steps li.on{color:var(--ink);font-weight:600}
+.steps li .tick{width:24px;height:24px;border-radius:50%;flex-shrink:0;
+  border:2px solid var(--rule);display:flex;align-items:center;justify-content:center;
+  font-size:12px;color:transparent;transition:background .3s,border-color .3s,color .3s}
+.steps li.on .tick{background:var(--accent);border-color:var(--accent);
+  color:var(--on-accent)}
+@media (prefers-reduced-motion:reduce){
+  .fallzone{display:none}
+  .buildbar i{transition:none}
+}
 
 /* ---- the plan ---- */
 .split{border-bottom:1px solid var(--rule);padding-bottom:14px;margin-bottom:14px}
@@ -346,16 +371,6 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
     <p>Meals for what you said you&rsquo;d spend.</p>
   </header>
 
-  <div class="picker" id="picker">
-    <span class="lab">Colour</span>
-    <button class="sw" data-pal="fresh"  style="background:#12805A" aria-label="Green"></button>
-    <button class="sw" data-pal="blue"   style="background:#1F53D6" aria-label="Blue"></button>
-    <button class="sw" data-pal="orange" style="background:#C0521E" aria-label="Orange"></button>
-    <button class="sw" data-pal="violet" style="background:#5B34C8" aria-label="Violet"></button>
-    <small>Tap one and the whole app changes. Tell me the colour you want and this
-      picker comes out.</small>
-  </div>
-
   <div class="cols">
     <div class="phone">
       <div class="topbar">
@@ -430,7 +445,17 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
           <b>what&rsquo;s already in your cupboard</b> — stock it plans around rather
           than buying again — and shows the cooking steps for every meal. Neither
           fits a pre-solved grid, so they are named here rather than faked.</p>
-        <div class="cta"><button class="btn" data-next="plan">Build the plan</button></div>
+        <div class="cta"><button class="btn" data-next="building">Build the plan</button></div>
+      </section>
+
+      <!-- building -->
+      <section class="screen" id="s-building" hidden style="padding:0">
+        <div class="building">
+          <div class="fallzone" id="fallzone"></div>
+          <h2>Building your week&hellip;</h2>
+          <div class="buildbar"><i id="buildFill"></i></div>
+          <ul class="steps" id="buildSteps"></ul>
+        </div>
       </section>
 
       <!-- 5. result -->
@@ -498,10 +523,19 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
   // Names only, never logos: DESIGN.md says the app names these shops as data
   // and must not dress as them.
   var UNPRICED = ["Sainsbury's","Asda","Morrisons","Lidl","Co-op","M&S","Waitrose"];
-  var STEPS = ["store","diet","days","budget","goal","plan"];
+  var STEPS = ["store","diet","days","budget","goal","building","plan"];
+  var BUILD_STEPS = [
+    "Matching meals to your shop and budget",
+    "Counting whole packs, not grams",
+    "Lining up the week's dinners",
+    "Putting the shopping list together"
+  ];
+  var BUILD_MS = 10000;
+  var FALLING = ["🥕","🌶️","🥦","🍅","🧅","🥚","🍞","🧀","🍌","🛒","🥔","🫘","🍚","🥫"];
   var STEP_NAMES = {store:"Where you shop", diet:"Anything to avoid",
                     days:"How long for", budget:"The budget",
-                    goal:"What you're eating for", plan:"Your plan"};
+                    goal:"What you're eating for", building:"Building",
+                    plan:"Your plan"};
   var DIET_EMOJI = {any:"🍽️", veggie:"🥦", gf:"🌾", df:"🥛"};
   var DIET_COLOUR = {any:"c0", veggie:"c7", gf:"c3", df:"c5"};
 
@@ -521,25 +555,6 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
   var money = function(n){ return "£" + Number(n).toFixed(2); };
   var esc = function(s){ return String(s).replace(/[&<>"]/g, function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); };
-
-  /* ---------- palette picker (a decision aid, not the product) ---------- */
-  var PALS = ["fresh","blue","orange","violet"];
-  function setPal(p){
-    if (p === "fresh") delete document.documentElement.dataset.palette;
-    else document.documentElement.dataset.palette = p;
-    try { localStorage.setItem("tt-pal", p); } catch (e) {}
-    [].forEach.call(document.querySelectorAll(".sw"), function(b){
-      b.setAttribute("aria-pressed", String(b.dataset.pal === p));
-    });
-  }
-  var saved = "fresh";
-  try { saved = localStorage.getItem("tt-pal") || "fresh"; } catch (e) {}
-  if (PALS.indexOf(saved) < 0) saved = "fresh";
-  setPal(saved);
-  $("picker").addEventListener("click", function(e){
-    var b = e.target.closest("[data-pal]");
-    if (b) setPal(b.dataset.pal);
-  });
 
   /* ---------- derived ---------- */
   function stops(){ return DATA.budgets[String(state.days)]; }
@@ -872,13 +887,52 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
     $("kv").innerHTML = out;
   }
 
+  /* ---------- building your week ---------- */
+  var buildTimers = [];
+  function startBuilding(){
+    buildTimers.forEach(clearTimeout);
+    buildTimers = [];
+
+    // A fresh set of falling groceries each time, at random positions, speeds
+    // and spins so it never looks like a loop.
+    var zone = $("fallzone");
+    zone.innerHTML = "";
+    for (var i = 0; i < 18; i++){
+      var e = document.createElement("span");
+      e.className = "fall";
+      e.textContent = FALLING[Math.floor(Math.random() * FALLING.length)];
+      e.style.left = (Math.random() * 88 + 3) + "%";
+      e.style.animationDuration = (2.6 + Math.random() * 2.6).toFixed(2) + "s";
+      e.style.animationDelay = (Math.random() * BUILD_MS / 1000).toFixed(2) + "s";
+      e.style.setProperty("--spin", Math.round(Math.random() * 300 - 150) + "deg");
+      e.style.opacity = (0.5 + Math.random() * 0.5).toFixed(2);
+      zone.appendChild(e);
+    }
+
+    $("buildSteps").innerHTML = BUILD_STEPS.map(function(t){
+      return '<li><span class="tick">&#10003;</span>' + esc(t) + '</li>';
+    }).join("");
+    $("buildFill").style.width = "0%";
+
+    var lis = $("buildSteps").querySelectorAll("li");
+    BUILD_STEPS.forEach(function(_, i){
+      buildTimers.push(setTimeout(function(){
+        lis[i].classList.add("on");
+        $("buildFill").style.width = Math.round((i + 1) / BUILD_STEPS.length * 100) + "%";
+      }, BUILD_MS * (i + 1) / BUILD_STEPS.length));
+    });
+    buildTimers.push(setTimeout(function(){
+      state.step = "plan"; render();
+    }, BUILD_MS + 250));
+  }
+
   /* ---------- chrome ---------- */
   function render(){
     STEPS.forEach(function(s){ $("s-"+s).hidden = (s !== state.step); });
     var ix = STEPS.indexOf(state.step);
     $("back").hidden = ix === 0;
     $("stepName").textContent = STEP_NAMES[state.step];
-    $("stepIdx").textContent = ix < 5 ? (ix+1) + " of 5"
+    $("stepIdx").textContent = state.step === "building" ? "" : ix < 5 ? (ix+1) + " of 5"
       : (currentPlan() && currentPlan().status === "ok" ? "Solved" : "No fit");
     $("rail").hidden = ix > 4;
     $("rail").innerHTML = "<i class='" + ["","","","",""].map(function(_, i){
@@ -910,7 +964,11 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
     var d = e.target.closest("[data-diet]");
     if (d){ state.diet = d.dataset.diet; state.ticked = {}; render(); return; }
     var n = e.target.closest("[data-next]");
-    if (n){ state.step = n.dataset.next; state.tab = "meals"; render(); return; }
+    if (n){
+      state.step = n.dataset.next; state.tab = "meals"; render();
+      if (state.step === "building") startBuilding();
+      return;
+    }
   });
   $("back").addEventListener("click", function(){
     var ix = STEPS.indexOf(state.step);

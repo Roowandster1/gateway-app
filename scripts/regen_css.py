@@ -33,16 +33,13 @@ css = css.replace(
     '  --mono:var(--font-plex-mono),ui-monospace,SFMono-Regular,Menlo,monospace;')
 assert 'var(--font-archivo)' in css, 'font token bridge missing'
 
-# The palette picker is a demo-only decision aid; the app ships one palette.
-i = css.index('/* ---- palette picker')
-j = css.index('/* ---- the app ---- */')
-css = css[:i] + css[j:]
-for pal in ('blue', 'orange', 'violet'):
-    k = css.index(':root[data-palette="%s"]' % pal)
-    css = css[:k] + css[css.index('\n', k) + 1:]
-while ':root:not([data-theme="light"])[data-palette=' in css:
-    k = css.index(':root:not([data-theme="light"])[data-palette=')
-    css = css[:k] + css[css.index('\n', k) + 1:]
+# The palette picker was a decision aid while the colour was being chosen. It has
+# been removed from the demo, so this strips nothing now — kept as a no-op guard
+# in case a demo-only block ever reappears.
+if '/* ---- palette picker' in css:
+    i = css.index('/* ---- palette picker')
+    j = css.index('/* ---- the app ---- */')
+    css = css[:i] + css[j:]
 
 # The app lists meals without the demo's expandable method, so the same row
 # rules have to reach a plain element too.
