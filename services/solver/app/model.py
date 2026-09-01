@@ -46,7 +46,30 @@ class _CbcViaLp(pulp.PULP_CBC_CMD):
 
     def actualSolve(self, lp, **kwargs):
         kwargs.setdefault("use_mps", False)
-        return self.solve_CBC(lp, **kwargs)
+        try:
+            return self.solve_CBC(lp, **kwargs)
+        except pulp.PulpSolverError:
+            # Second chance with presolve off.
+            #
+            # The LP file fixes CBC's MPS reader; it does not fix everything.
+            # `dmesg` shows this build segfaulting at one fixed instruction
+            # (0x5b60a8) on a garbage index deep in branch-and-bound, and one
+            # model — the pantry floor for tesco, 3 days, bulk — hits it every
+            # time, LP or MPS, with or without a time limit.
+            #
+            # Turning presolve off steps around it: the model then solves to
+            # proven optimality in about seven seconds. So does turning cuts
+            # off, and the two agree on the objective to the penny, which is
+            # the evidence that this is a crash and not a disagreement about
+            # the answer. Presolve is the one to drop of the two — it only
+            # reformulates the model, so switching it off cannot change the
+            # optimum, where cuts-off is merely slower at reaching it.
+            #
+            # Only on the retry: presolve earns its keep on the other 1141
+            # combinations.
+            fallback = pulp.PULP_CBC_CMD(
+                msg=0, timeLimit=self.timeLimit, options=["presolve off"])
+            return fallback.solve_CBC(lp, use_mps=False)
 
 
 def _cbc() -> pulp.LpSolver:

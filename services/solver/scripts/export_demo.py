@@ -11,6 +11,7 @@ stock you still own afterwards, so quoting it as the weekly cost overstates what
 the food costs by around 40%. `floor_first` is the first shop; `floor_ongoing`
 is the same targets once the cupboard is stocked.
 """
+import argparse
 import json
 import multiprocessing
 import sys
@@ -231,9 +232,29 @@ def one_combo(job):
 
 
 def main():
+    # --repair recomputes only what is missing and merges it into the existing
+    # plans.json. CBC drops a combination now and then (see `retrying`), and
+    # re-running all 128 for the sake of one of them is most of an hour to
+    # recover a few seconds of work.
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--repair", action="store_true",
+                    help="only solve combinations missing from demo/plans.json")
+    args = ap.parse_args()
+
     jobs = [(store, days, goal, diet)
             for store in STORES for days in DAYS
             for goal in GOALS for diet in DIETS]
+
+    dest = Path(__file__).resolve().parents[3] / "demo" / "plans.json"
+    existing = None
+    if args.repair:
+        existing = json.loads(dest.read_text())
+        jobs = [j for j in jobs if "|".join(str(x) for x in j) not in existing["floors"]]
+        if not jobs:
+            print("nothing missing — every combination is already exported")
+            return
+        print(f"repairing {len(jobs)} missing combination(s): "
+              + ", ".join("|".join(str(x) for x in j) for j in jobs))
 
     out = {"goals": {k: {"label": v["label"], "kcal_band": v["kcal_band"],
                          "protein": v["min_protein_per_day"]}
@@ -262,7 +283,15 @@ def main():
                   f"{('£%.2f' % floor['ongoing']) if floor['ongoing'] else 'none':>8}",
                   flush=True)
 
-    dest = Path(__file__).resolve().parents[3] / "demo" / "plans.json"
+    if existing is not None:
+        # Merge into what is already there rather than replacing it: a repair
+        # run only solved the gaps and knows nothing about the other 127.
+        recovered = len(out["floors"])
+        existing["floors"].update(out["floors"])
+        existing["plans"].update(out["plans"])
+        out = existing
+        print(f"\nrecovered {recovered} combination(s)")
+
     dest.parent.mkdir(exist_ok=True)
     dest.write_text(json.dumps(out, separators=(",", ":")))
     ok = sum(1 for v in out["plans"].values() if v["status"] == "ok")

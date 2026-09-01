@@ -541,10 +541,12 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
             <p class="caption" id="splitCaption"></p>
           </div>
           <div class="tabs" role="tablist">
-            <button class="tab" id="tabMeals" role="tab" aria-selected="true">The food</button>
+            <button class="tab" id="tabWeek" role="tab" aria-selected="true">The week</button>
+            <button class="tab" id="tabMeals" role="tab" aria-selected="false">Every dish</button>
             <button class="tab" id="tabShop" role="tab" aria-selected="false">Shopping list</button>
           </div>
-          <div class="pane" id="paneMeals" tabindex="0" role="group" aria-label="The meals in this plan"></div>
+          <div class="pane" id="paneWeek" tabindex="0" role="group" aria-label="The week, day by day"></div>
+          <div class="pane" id="paneMeals" hidden tabindex="0" role="group" aria-label="The meals in this plan"></div>
           <div class="pane" id="paneShop" hidden tabindex="0" role="group" aria-label="The shopping list"></div>
         </div>
         <div id="planNo" hidden></div>
@@ -618,7 +620,7 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
   });
 
   var state = {store:"aldi", days:7, budgetGBP:35, goal:"maintain", diet:"any",
-               step:"store", tab:"meals", ticked:{}};
+               step:"store", tab:"week", ticked:{}};
 
   var $ = function(id){ return document.getElementById(id); };
   var money = function(n){ return "£" + Number(n).toFixed(2); };
@@ -790,6 +792,121 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
   }
 
   /* ---------- step 5: the plan ---------- */
+  /* Lay the servings out across the days.
+     The same algorithm as apps/web/lib/week.ts, and the reasoning lives there:
+     each dish is spread over the whole span at (i + 0.5) * n / k so it does not
+     arrive in a block, the spans are merged, and a swap pass evens out the
+     calories without letting a dish land twice in a day or on two days running.
+     Arrangement only — every serving the solver bought appears exactly once. */
+  function dealSlot(meals){
+    var span = meals.reduce(function(a, m){ return a + m.servings; }, 0);
+    var out = [];
+    meals.forEach(function(m){
+      for (var i = 0; i < m.servings; i++)
+        out.push({meal: m, at: (i + 0.5) * span / m.servings});
+    });
+    out.sort(function(a, b){
+      return (a.at - b.at) || (a.meal.recipe < b.meal.recipe ? -1 : 1); });
+    return out.map(function(x){ return x.meal; });
+  }
+
+  function kcalOf(day){
+    return day.reduce(function(a, x){ return a + x.meal.kcal_per_serving; }, 0);
+  }
+
+  function layOutWeek(meals, days){
+    var SLOTS = ["breakfast", "main", "snack"];
+    var week = [];
+    for (var d = 0; d < days; d++) week.push([]);
+    SLOTS.forEach(function(slot){
+      var q = dealSlot(meals.filter(function(m){ return m.slot === slot; }));
+      var taken = 0;
+      for (var d = 0; d < days; d++){
+        var upto = Math.floor((d + 1) * q.length / days);
+        for (var i = 0; taken < upto; i++, taken++)
+          week[d].push({slot: slot, meal: q[taken]});
+      }
+    });
+    if (days < 2) return week;
+
+    var mean = week.reduce(function(a, d){ return a + kcalOf(d); }, 0) / days;
+    var cost = function(d){ return Math.abs(kcalOf(d) - mean); };
+    var names = function(d){ return d.map(function(x){ return x.meal.recipe; }); };
+    var adjacent = function(at, r){
+      return [at - 1, at + 1].some(function(k){
+        return week[k] && names(week[k]).indexOf(r) >= 0; }); };
+
+    for (var pass = 0; pass < 4; pass++){
+      var moved = false;
+      for (var i = 0; i < days; i++) for (var j = i + 1; j < days; j++)
+        for (var a = 0; a < week[i].length; a++) for (var b = 0; b < week[j].length; b++){
+          var x = week[i][a], y = week[j][b];
+          if (x.slot !== y.slot || x.meal.recipe === y.meal.recipe) continue;
+          var before = cost(week[i]) + cost(week[j]);
+          week[i][a] = y; week[j][b] = x;
+          var dup = function(d, r){
+            return names(d).filter(function(n){ return n === r; }).length > 1; };
+          if (dup(week[i], y.meal.recipe) || dup(week[j], x.meal.recipe)
+              || adjacent(i, y.meal.recipe) || adjacent(j, x.meal.recipe)
+              || cost(week[i]) + cost(week[j]) >= before){
+            week[i][a] = x; week[j][b] = y;
+          } else { moved = true; }
+        }
+      if (!moved) break;
+    }
+    return week;
+  }
+
+  /* A day that gets the same dish twice is one row with a count, not two
+     identical rows one under the other. */
+  function mergeRun(day){
+    var out = [];
+    day.forEach(function(x){
+      var last = out[out.length - 1];
+      if (last && last.meal.recipe === x.meal.recipe && last.slot === x.slot) last.n++;
+      else out.push({slot: x.slot, meal: x.meal, n: 1});
+    });
+    return out;
+  }
+
+  function mealRow(m, badge){
+    var how = (DATA.methods || {})[m.recipe];
+    var pic = IMAGES[m.recipe];
+    return '<details class="meal"><summary>'
+      + (pic ? '<img class="shot" src="'+pic+'" alt="" loading="lazy">'
+             : '<span class="shot"></span>')
+      + badge
+      + '<span class="nm">'+esc(m.name)+'</span>'
+      + '<span class="mac">'+Math.round(m.protein_per_serving)+'g · '
+      + Math.round(m.kcal_per_serving)+' kcal<br>'+m.minutes+' min</span>'
+      + '<span class="chev">&#9654;</span></summary>'
+      + (how
+          ? '<div class="method"><p class="desc">'+esc(how.summary)+'</p><ol>'
+            + how.steps.map(function(t){ return "<li>"+esc(t)+"</li>"; }).join("")
+            + '</ol><p class="src">No amounts in the steps. They come from the '
+            + 'solver and live in the shopping list.</p></div>'
+          : '<div class="method"><p class="desc">No steps written yet.</p></div>')
+      + '</details>';
+  }
+
+  var SITTING = {breakfast:"Breakfast", main:"Main", snack:"Snack"};
+
+  function renderWeek(p){
+    var week = layOutWeek(p.meals, state.days);
+    $("paneWeek").innerHTML = week.map(function(day, i){
+      return '<div class="slot-head"><span>Day '+(i+1)+'</span><span>'
+           + Math.round(kcalOf(day))+' kcal</span></div>'
+           + mergeRun(day).map(function(x){
+               return mealRow(x.meal, '<span class="when">'+SITTING[x.slot]
+                 + (x.n > 1 ? ' \u00d7'+x.n : '')+'</span>');
+             }).join("");
+    }).join("")
+      + '<p class="caveat">The targets are met across the whole plan — <b>'
+      + p.kcal_per_day.toFixed(0)+' kcal</b> and <b>'
+      + p.protein_per_day.toFixed(0)+'g protein</b> a day on average. Days are '
+      + 'laid out to spread dishes apart; move them around freely.</p>';
+  }
+
   function renderPlan(){
     var p = currentPlan();
     var ok = p && p.status === "ok";
@@ -798,6 +915,7 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
     if (!ok){ renderInfeasible(p); return; }
 
     renderSplit(p);
+    renderWeek(p);
 
     var order = {breakfast:0, main:1, snack:2};
     var meals = p.meals.slice().sort(function(a,b){
@@ -813,23 +931,7 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
         head = '<div class="slot-head"><span>' + SLOT_TITLE[m.slot]
              + '</span><span>' + plural(n, "serving") + '</span></div>';
       }
-      var how = (DATA.methods || {})[m.recipe];
-      var pic = IMAGES[m.recipe];
-      return head + '<details class="meal"><summary>'
-        + (pic ? '<img class="shot" src="'+pic+'" alt="" loading="lazy">'
-               : '<span class="shot"></span>')
-        + '<span class="mult">'+m.servings+'&times;</span>'
-        + '<span class="nm">'+esc(m.name)+'</span>'
-        + '<span class="mac">'+Math.round(m.protein_per_serving)+'g · '
-        + Math.round(m.kcal_per_serving)+' kcal<br>'+m.minutes+' min</span>'
-        + '<span class="chev">&#9654;</span></summary>'
-        + (how
-            ? '<div class="method"><p class="desc">'+esc(how.summary)+'</p><ol>'
-              + how.steps.map(function(t){ return "<li>"+esc(t)+"</li>"; }).join("")
-              + '</ol><p class="src">No amounts in the steps. They come from the '
-              + 'solver and live in the shopping list.</p></div>'
-            : '<div class="method"><p class="desc">No steps written yet.</p></div>')
-        + '</details>';
+      return head + mealRow(m, '<span class="mult">'+m.servings+'&times;</span>');
     }).join("")
       + '<p class="note"><b>'+p.protein_per_day.toFixed(0)+'g</b> protein and <b>'
       + p.kcal_per_day.toFixed(0)+'</b> kcal a day, averaged over '
@@ -1039,19 +1141,21 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
     });
     renderStores(); renderDiets(); renderGoals(); renderDays(); renderBudget();
     if (state.step === "plan") renderPlan();
+    $("paneWeek").hidden  = state.tab !== "week";
     $("paneMeals").hidden = state.tab !== "meals";
     $("paneShop").hidden  = state.tab !== "shop";
+    $("tabWeek").setAttribute("aria-selected", String(state.tab === "week"));
     $("tabMeals").setAttribute("aria-selected", String(state.tab === "meals"));
     $("tabShop").setAttribute("aria-selected", String(state.tab === "shop"));
     renderKv();
-    markScroll($("paneMeals")); markScroll($("paneShop"));
+    markScroll($("paneWeek")); markScroll($("paneMeals")); markScroll($("paneShop"));
   }
 
   function markScroll(el){
     if (!el) return;
     el.classList.toggle("more", el.scrollTop + el.clientHeight < el.scrollHeight - 2);
   }
-  ["paneMeals","paneShop"].forEach(function(id){
+  ["paneWeek","paneMeals","paneShop"].forEach(function(id){
     var el = document.getElementById(id);
     if (el) el.addEventListener("scroll", function(){ markScroll(el); });
   });
@@ -1065,7 +1169,7 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
     if (d){ state.diet = d.dataset.diet; state.ticked = {}; render(); return; }
     var n = e.target.closest("[data-next]");
     if (n){
-      state.step = n.dataset.next; state.tab = "meals"; render();
+      state.step = n.dataset.next; state.tab = "week"; render();
       if (state.step === "building") startBuilding();
       return;
     }
@@ -1089,6 +1193,7 @@ span.shot::after{content:"";width:16px;height:16px;border-radius:4px;
     if (v === state.budgetGBP) return;
     state.budgetGBP = v; state.ticked = {}; render();
   });
+  $("tabWeek").addEventListener("click", function(){ state.tab="week"; render(); });
   $("tabMeals").addEventListener("click", function(){ state.tab="meals"; render(); });
   $("tabShop").addEventListener("click", function(){ state.tab="shop"; render(); });
   $("paneShop").addEventListener("change", function(e){
