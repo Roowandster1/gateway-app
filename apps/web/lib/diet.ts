@@ -81,4 +81,10 @@ export const ALL_STORES = [
   { slug: "waitrose", name: "Waitrose", priced: false },
 ] as const;
 
-export const TOTAL_RECIPES = 24;
+/**
+ * What the counter shows before /filters answers, and only then — the live
+ * number replaces it on the first response. It is here so the first paint says
+ * something true rather than "0 of 0 recipes still fit"; it had been left at 24
+ * through two rounds of generation.
+ */
+export const TOTAL_RECIPES = 206;

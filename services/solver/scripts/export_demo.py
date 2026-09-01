@@ -15,6 +15,7 @@ import json
 import multiprocessing
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 import pulp
@@ -110,6 +111,29 @@ def _catalogue(store):
     return _CACHE[store]
 
 
+def retrying(fn, *args, attempts: int = 3):
+    """
+    Run a CBC call, and if the binary itself falls over, run it again.
+
+    PulpSolverError here is not "no answer" — it is the cbc subprocess exiting
+    abnormally, which happens when several large MILPs are in flight at once.
+    It is transient by nature: the same model solves on the next attempt.
+
+    This used to wrap only the per-budget solves, so a failure in the floor
+    computation — which runs first, for every combination — took the whole
+    export down with it. That is 128 combinations and the better part of an
+    hour lost to one subprocess. Raises if every attempt fails, so a model that
+    genuinely cannot be solved still surfaces rather than being swallowed.
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            return fn(*args)
+        except pulp.PulpSolverError:
+            if attempt == attempts:
+                raise
+            time.sleep(attempt)
+
+
 def one_combo(job):
     """
     Everything for a single (store, days, goal, diet): the floor pair and every
@@ -129,12 +153,13 @@ def one_combo(job):
                 exclude_recipes=excluded)
     combo = f"{store}|{days}|{goal}|{diet_key}"
 
-    first = cheapest_feasible_budget(items, recipes, SolveParams(budget=999.0, **base))
+    first = retrying(cheapest_feasible_budget, items, recipes,
+                     SolveParams(budget=999.0, **base))
     ongoing = None
     if first is not None:
         pantry = stocked_pantry(items, recipes, base)
-        ongoing = cheapest_feasible_budget(
-            items, recipes, SolveParams(budget=999.0, pantry=pantry, **base))
+        ongoing = retrying(cheapest_feasible_budget, items, recipes,
+                           SolveParams(budget=999.0, pantry=pantry, **base))
 
     plans, missing = {}, []
     structural = None
@@ -162,21 +187,16 @@ def one_combo(job):
                     f"£{first:.2f} is the cheapest {days}-day plan there "
                     f"for these targets.")}
             continue
-        # A 14-day plan over 222 recipes is a big enough MILP that CBC falls
-        # over when several run at once — every 1, 3 and 7-day combo finished
-        # and the crash was always on the first fortnight. Retry once, and if it
-        # fails again leave the key out: the demo already renders a missing
-        # combination as "outside the exported grid", which is true, rather than
-        # inventing a plan for it.
-        p = None
-        for attempt in (1, 2):
-            try:
-                p = solve_plan(items, recipes, SolveParams(budget=budget, **base))
-                break
-            except pulp.PulpSolverError:
-                if attempt == 2:
-                    missing.append(key)
-        if p is None:
+        # A fortnight over two hundred recipes is a big enough MILP that CBC
+        # falls over when several run at once. If it will not solve after three
+        # goes, leave the key out: the demo renders a missing combination as
+        # "outside the exported grid", which is true, rather than inventing a
+        # plan for it.
+        try:
+            p = retrying(solve_plan, items, recipes,
+                         SolveParams(budget=budget, **base))
+        except pulp.PulpSolverError:
+            missing.append(key)
             continue
         plans[key] = {
             "status": "ok", "spend": p.spend,

@@ -75,7 +75,12 @@ def family_for(slugs: set[str]) -> str | None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--write", action="store_true")
+    # A filename, not a flag. As a flag it always wrote the same migration,
+    # and a second run — which by then only sees the recipes added since —
+    # replaced that file with a handful of rows instead of adding to it.
+    ap.add_argument("--write", metavar="FILENAME", nargs="?",
+                    const="015_family_images.sql",
+                    help="migration to write under db/migrations")
     args = ap.parse_args()
 
     with psycopg.connect(config.DATABASE_URL) as conn:
@@ -105,11 +110,12 @@ def main() -> None:
         print(f"    {slug}: {', '.join(ings)}")
 
     if args.write:
-        dest = ROOT / "db" / "migrations" / "015_family_images.sql"
+        dest = ROOT / "db" / "migrations" / args.write
         out = [
-            "-- 015 — dish-type photographs for the generated recipes",
+            f"-- {dest.stem.split(chr(95))[0]} — dish-type photographs for the generated recipes",
             "--",
-            "-- Twelve images covering 198 recipes by shape. A family image is a",
+            f"-- {len(FILES)} images covering {len(rows)} recipes by shape. "
+            "A family image is a",
             "-- photograph of the KIND of food, not of that exact plate — the",
             "-- original 24 are the real thing, these are not, and image_is_family",
             "-- marks the difference so the UI can be honest about it.",

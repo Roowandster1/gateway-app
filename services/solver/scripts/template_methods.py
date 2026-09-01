@@ -131,7 +131,12 @@ def steps_for(slugs: set[str], minutes: int) -> tuple[str, list[str]]:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--write", action="store_true")
+    # A filename, not a flag. As a flag it always wrote the same migration,
+    # and a second run — which by then only sees the recipes added since —
+    # replaced that file with a handful of rows instead of adding to it.
+    ap.add_argument("--write", metavar="FILENAME", nargs="?",
+                    const="014_template_methods.sql",
+                    help="migration to write under db/migrations")
     args = ap.parse_args()
 
     with psycopg.connect(config.DATABASE_URL) as conn:
@@ -164,9 +169,9 @@ def main() -> None:
         print(f"    {slug}: {why}")
 
     if args.write:
-        dest = ROOT / "db" / "migrations" / "014_template_methods.sql"
+        dest = ROOT / "db" / "migrations" / args.write
         out = [
-            "-- 014 — cooking steps for the generated recipes",
+            f"-- {dest.stem.split(chr(95))[0]} — cooking steps for the generated recipes",
             "--",
             "-- Written by services/solver/scripts/template_methods.py: composed from",
             "-- each recipe's own ingredient list, with no model involved, and every",

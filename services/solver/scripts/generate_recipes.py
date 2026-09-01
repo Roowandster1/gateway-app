@@ -46,7 +46,9 @@ from app.domain import Item  # noqa: E402
 # rule here rejects a recipe a person already wrote, the rule is wrong.
 # ---------------------------------------------------------------------------
 BASES = {
-    "breakfast": ["oats", "bread", "tortilla", "potato", "rice"],
+    # No rice: no shape in LIGHT_ON takes it, so enumerating rice breakfasts
+    # only to reject every one of them is work nobody reads.
+    "breakfast": ["oats", "bread", "tortilla", "potato", "yoghurt"],
     "main": ["rice", "pasta", "noodles", "potato", "bread", "tortilla"],
     "snack": ["bread", "oats", "tortilla"],
 }
@@ -85,6 +87,7 @@ NEVER_TOGETHER = [
     {"yoghurt", "mince"}, {"yoghurt", "tuna"}, {"yoghurt", "kidney"},
     {"yoghurt", "beans"}, {"milk", "toms"}, {"milk", "onion"},
     {"oats", "toms"}, {"oats", "onion"}, {"oats", "cheese"},
+    {"eggs", "banana"},
 ]
 
 # A bulk day is 3300 kcal across three meals, so a main has to be able to reach
@@ -130,8 +133,59 @@ SCALES = ("base", "protein")   # the only roles a serving may be scaled on
 # passes the sweet/savoury rule, because a potato is at home in either.
 BANANA_OK = {"oats", "bread", "tortilla", "yoghurt", "pb", "milk", "eggs"}
 # And porridge is a sweet dish. Without this the generator produced "tuna
-# porridge" and "egg porridge", which pass every nutritional check ever written.
-OATS_OK = {"banana", "pb", "yoghurt", "milk"}
+# porridge", which passes every nutritional check ever written. Eggs and oil are
+# in the list because a pancake is oats too; what separates the two is the shape
+# rule below, not this one.
+OATS_OK = {"banana", "pb", "yoghurt", "milk", "eggs", "oil"}
+
+# ---------------------------------------------------------------------------
+# What a breakfast — or a snack — actually is
+# ---------------------------------------------------------------------------
+# The rules above are about whether two ingredients belong on a plate. They say
+# nothing about whether the plate is breakfast, and the enumeration exploited
+# that: yoghurt spread on toast, yoghurt on a jacket potato, tinned tomatoes
+# with cheese at 7am, a bowl of beans and oil called "Bean". Every one clears
+# the calorie band and the protein floor. Not one is breakfast.
+#
+# So breakfast gets a shape rule instead of another list of forbidden pairs. A
+# breakfast is built on ONE base and carries only what that base takes. Read the
+# table downwards and it is five dishes: porridge, a yoghurt bowl, something on
+# toast, a wrap, and eggs.
+#
+# Order matters — the first base found is the dish. Yoghurt outranks bread, so
+# yoghurt and bread together is a bowl that has been handed a slice of toast,
+# which is not one of the five, rather than toast with a yoghurt topping.
+#
+# Snacks are the same vocabulary with the base made optional: peanut butter and
+# a banana is a snack and is not built on anything. What a snack may not do is
+# put tomatoes in the yoghurt, so when a base IS present the table still binds.
+LIGHT_BASES = ("oats", "yoghurt", "bread", "tortilla", "eggs")
+LIGHT_ON: dict[str, set[str]] = {
+    "oats":     {"milk", "yoghurt", "banana", "pb", "eggs", "oil"},
+    "yoghurt":  {"oats", "banana", "pb", "milk"},
+    "bread":    {"eggs", "beans", "cheese", "pb", "banana", "toms", "oil", "milk"},
+    "tortilla": {"eggs", "beans", "cheese", "pb", "banana", "oil", "milk"},
+    "eggs":     {"potato", "cheese", "toms", "oil", "milk"},
+}
+
+
+def light_shape(slugs: set[str], *, base_required: bool) -> bool:
+    base = next((b for b in LIGHT_BASES if b in slugs), None)
+    if base is None:
+        # Beans and oil. Cheese and tinned tomatoes. Food, in the sense that you
+        # could eat it; not a breakfast, and not something to hand someone at
+        # seven in the morning as one of their three meals. A snack is allowed
+        # to be two ingredients and no base, so it stops here instead.
+        return not base_required
+    if not (slugs - {base}) <= LIGHT_ON[base]:
+        return False
+    # Oats and eggs together is a pancake, which is a batter you fry, so it has
+    # to bring the fat and the liquid with it. Without this clause the same two
+    # items are "egg porridge" — which is why OATS_OK could not simply be
+    # widened to let the hand-written pancake recipe through.
+    if {"oats", "eggs"} <= slugs and not {"oil", "milk"} <= slugs:
+        return False
+    return True
 
 
 def check_servings(items: dict[str, Item]) -> list[str]:
@@ -195,7 +249,10 @@ def macros(items: dict[str, Item], ing: list[tuple[str, float]]) -> tuple[float,
     return kcal, prot
 
 
-def plausible(slugs: set[str]) -> bool:
+def plausible(slugs: set[str], slot: str = "main") -> bool:
+    if slot in ("breakfast", "snack") and not light_shape(
+            slugs, base_required=slot == "breakfast"):
+        return False
     if SWEET_ONLY & slugs and SAVOURY_ONLY & slugs:
         return False
     if len(MEAT_AND_FISH & slugs) > 1:
@@ -217,7 +274,7 @@ def build(items: dict[str, Item], slot: str, base: str | None, protein: str,
              (flavour, "flavour")]
     chosen = [(s, role) for s, role in parts if s]
     slugs = {s for s, _ in chosen}
-    if len(slugs) < 2 or not plausible(slugs):
+    if len(slugs) < 2 or not plausible(slugs, slot):
         return None
 
     if any(s not in SERVE for s in slugs):
@@ -436,7 +493,8 @@ def main() -> None:
     # not, a rule is wrong and the generator would be quietly discarding food a
     # person already decided was fine.
     rejected = [slug for slug, r in existing.items()
-                if not plausible(set(r.ingredients))]
+                if not r.slug.startswith("g-")
+                and not plausible(set(r.ingredients), r.meal_slot)]
     print(f"hand-written recipes rejected by the rules: {rejected or 'none'}")
 
     have = {frozenset(r.ingredients) for r in existing.values()}
