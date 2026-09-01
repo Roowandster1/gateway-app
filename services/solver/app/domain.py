@@ -63,6 +63,20 @@ class Recipe:
     # never enter the objective.
     tags: frozenset[str] = frozenset()
 
+    @property
+    def main_protein(self) -> str | None:
+        """
+        The protein this dish is built on, for the variety constraint.
+
+        Derived from the ingredient list rather than stored, so it stays true
+        for hand-written and generated recipes alike.
+        """
+        for slug in ("chicken", "mince", "tuna", "eggs", "lentils", "chickpeas",
+                     "kidney", "beans", "pb", "cheese", "yoghurt"):
+            if slug in self.ingredients:
+                return slug
+        return None
+
     def macros(self, items: dict[str, Item]) -> tuple[float, float]:
         kcal = protein = 0.0
         for slug, qty in self.ingredients.items():

@@ -128,5 +128,16 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return (await res.json()) as T;
 }
 
+/** How many of the catalogue's recipes survive the dietary answers. */
+export interface FilterCount {
+  recipes_left: number;
+  total: number;
+  by_slot: Record<string, number>;
+  removed_by: Record<string, number>;
+  /** Set when the filters alone make a plan impossible at any budget. */
+  blocked: string | null;
+}
+
 export const solve = (req: SolveRequest) => post<SolveResult>("/solve", req);
 export const floor = (req: SolveRequest) => post<Floor>("/floor", req);
+export const filtersOnly = (req: SolveRequest) => post<FilterCount>("/filters", req);

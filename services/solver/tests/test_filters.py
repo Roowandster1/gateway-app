@@ -33,14 +33,18 @@ def test_empty_appliances_means_everything(cat):
     assert report_for(cat, appliances=()).excluded == set()
 
 
-def test_gluten_free_empties_breakfast(cat):
-    """A real gap in the catalogue, and the one filter that cannot be paid past."""
+def test_gluten_free_has_breakfasts(cat):
+    """
+    It did not, and that was the gap that prompted generating recipes: bread and
+    oats were the only breakfast carbs anyone had written a recipe around, while
+    23 of the 28 items are gluten-free the whole time. If this ever returns to
+    zero the generator has regressed, not the catalogue.
+    """
     r = report_for(cat, allergens=["gluten"])
-    assert r.remaining_by_slot["breakfast"] == 0
-    reason = filters.blocked_reason(r, filters.Diet.of(allergens=["gluten"]))
-    assert reason is not None
-    assert "breakfast" in reason
-    assert "not a budget problem" in reason
+    assert r.remaining_by_slot["breakfast"] > 0
+    assert r.remaining_by_slot["main"] > 0
+    assert filters.blocked_reason(r, filters.Diet.of(allergens=["gluten"]),
+                                  cat[1]) is None
 
 
 def test_peanut_free_leaves_breakfast(cat):
@@ -101,16 +105,44 @@ def test_a_style_never_touches_breakfast(cat):
     breakfast out entirely, which was technically correct and plainly not what
     anyone meant.
     """
-    r = report_for(cat, styles=["onepot"])
-    assert r.remaining_by_slot["breakfast"] == 7
-    assert r.remaining_by_slot["snack"] == 5
-    assert r.remaining_by_slot["main"] == 9
+    plain = report_for(cat)
+    styled = report_for(cat, styles=["onepot"])
+    assert styled.remaining_by_slot["breakfast"] == plain.remaining_by_slot["breakfast"]
+    assert styled.remaining_by_slot["snack"] == plain.remaining_by_slot["snack"]
+    assert styled.remaining_by_slot["main"] < plain.remaining_by_slot["main"]
 
 
 def test_blocked_reason_names_one_culprit(cat):
-    """A reason listing every answer given is not actionable."""
-    diet = filters.Diet.of(allergens=["gluten"], appliances=["hob"], proteins=["beef"])
-    r = filters.apply(cat[0], cat[1], diet)
-    reason = filters.blocked_reason(r, diet, cat[1])
-    assert "gluten-free" in reason
-    assert "no beef" not in reason and "appliances" not in reason
+    """
+    A reason listing every answer given is not actionable.
+
+    No realistic filter set empties a slot any more, which is the point of
+    generating the recipes — so the mechanism is exercised against a
+    hand-built report rather than by contriving a diet that still breaks.
+    """
+    recipes = cat[1]
+    breakfasts = [s for s, r in recipes.items() if r.meal_slot == "breakfast"]
+    report = filters.FilterReport(
+        excluded=set(breakfasts),
+        by_reason={"gluten-free": breakfasts, "no beef": ["chilli"]},
+        remaining_by_slot={"breakfast": 0, "main": 5, "snack": 3},
+        total_remaining=8,
+    )
+    reason = filters.blocked_reason(report, filters.Diet.of(), recipes)
+    assert "breakfast" in reason
+    assert "not a budget problem" in reason
+    # Named by what emptied the slot, not by everything that was ticked.
+    assert "gluten-free" in reason and "no beef" not in reason
+
+
+def test_no_realistic_diet_runs_out_of_food(cat):
+    """
+    The catalogue should now absorb a stacked filter set. This is the whole
+    return on generating recipes, so it is asserted rather than assumed.
+    """
+    for kw in (dict(allergens=["gluten"]),
+               dict(allergens=["gluten", "dairy"]),
+               dict(allergens=["dairy", "peanut"], proteins=["beef", "chicken"]),
+               dict(styles=["veggie"], appliances=["hob"])):
+        r = report_for(cat, **kw)
+        assert filters.blocked_reason(r, filters.Diet.of(**kw), cat[1]) is None, kw

@@ -16,7 +16,7 @@ import {
   type Style,
   type Tile,
 } from "@/lib/diet";
-import type { Floor, Plan, SolveResult, SolverError } from "@/lib/solver";
+import type { FilterCount, Floor, Plan, SolveResult, SolverError } from "@/lib/solver";
 
 const STEPS = [
   "store",
@@ -120,12 +120,14 @@ export function Planner() {
   const [floorFor, setFloorFor] = useState<{ key: string; value: Floor | null } | null>(
     null,
   );
+  const [counts, setCounts] = useState<{ key: string; value: FilterCount } | null>(null);
   const [result, setResult] = useState<SolveResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"food" | "shop">("food");
   const [ticked, setTicked] = useState<Record<string, boolean>>({});
 
+  const ix = STEPS.indexOf(step);
   const targets = GOALS[goal];
   const diet = useMemo(
     () => ({
@@ -138,6 +140,7 @@ export function Planner() {
   );
   // The floor depends on the filters too — a vegetarian week has a different
   // cheapest shop — so they belong in the key that makes a stored floor stale.
+  const countKey = `${store}|${JSON.stringify(diet)}`;
   const floorKey = `${store}|${days}|${goal}|${JSON.stringify(diet)}`;
   const floorEntry = floorFor?.key === floorKey ? floorFor : null;
   const floor = floorEntry?.value ?? null;
@@ -159,9 +162,31 @@ export function Planner() {
     [store, days, budget, targets, diet],
   );
 
-  // The floor is fetched before a budget is chosen, so the screen can say what
-  // is actually possible instead of letting someone pick an impossible number.
+  // The recipe counter on every filter screen. This costs nothing — it is a set
+  // intersection, not a solve — so it can run on every tap.
   useEffect(() => {
+    let live = true;
+    fetch("/api/filters", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ store, days: 7, budget: 1, ...diet }),
+    })
+      .then(async (r) => (r.ok ? ((await r.json()) as FilterCount) : null))
+      .then((value) => {
+        if (live && value && "recipes_left" in value) {
+          setCounts({ key: countKey, value });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [countKey, store, diet]);
+
+  // The floor costs a set of CBC runs, so it is fetched only once the answers
+  // that shape it are in — not on every tap of a filter screen.
+  useEffect(() => {
+    if (ix < STEPS.indexOf("budget")) return;
     let live = true;
     fetch("/api/floor", {
       method: "POST",
@@ -197,7 +222,7 @@ export function Planner() {
     return () => {
       live = false;
     };
-  }, [floorKey, store, days, targets, diet]);
+  }, [floorKey, store, days, targets, diet, ix]);
 
   async function buildPlan() {
     setBusy(true);
@@ -223,11 +248,12 @@ export function Planner() {
     }
   }
 
-  const ix = STEPS.indexOf(step);
   const plan = result?.status === "ok" ? (result as Plan) : null;
   const storeName = ALL_STORES.find((s) => s.slug === store)?.name ?? store;
-  const recipesLeft = floor?.recipes_left ?? TOTAL_RECIPES;
-  const blocked = floor?.blocked ?? null;
+  const count = counts?.key === countKey ? counts.value : null;
+  const recipesLeft = count?.recipes_left ?? null;
+  const totalRecipes = count?.total ?? TOTAL_RECIPES;
+  const blocked = count?.blocked ?? floor?.blocked ?? null;
 
   return (
     <div className="phone">
@@ -293,7 +319,7 @@ export function Planner() {
             selected={appliances}
             onToggle={(k) => setAppliances(toggle(appliances, k))}
           />
-          <Counter left={recipesLeft} blocked={blocked} />
+          <Counter left={recipesLeft} total={totalRecipes} blocked={blocked} />
         </Screen>
       )}
 
@@ -314,7 +340,7 @@ export function Planner() {
             No pork option, because the catalogue has no pork. A toggle that did
             nothing would look like a feature.
           </p>
-          <Counter left={recipesLeft} blocked={blocked} />
+          <Counter left={recipesLeft} total={totalRecipes} blocked={blocked} />
         </Screen>
       )}
 
@@ -338,7 +364,7 @@ export function Planner() {
             missing because no product name settles them, and a guessed allergen
             is worse than an absent one.
           </p>
-          <Counter left={recipesLeft} blocked={blocked} />
+          <Counter left={recipesLeft} total={totalRecipes} blocked={blocked} />
         </Screen>
       )}
 
@@ -355,7 +381,7 @@ export function Planner() {
             selected={styles}
             onToggle={(k) => setStyles(toggle(styles, k))}
           />
-          <Counter left={recipesLeft} blocked={blocked} />
+          <Counter left={recipesLeft} total={totalRecipes} blocked={blocked} />
         </Screen>
       )}
 
@@ -574,7 +600,15 @@ function TileGrid<T extends string>({
  * and finding that out four screens later is a dead end. This says it as it
  * happens, and turns red with the real reason when the slot is already gone.
  */
-function Counter({ left, blocked }: { left: number; blocked: string | null }) {
+function Counter({
+  left,
+  total,
+  blocked,
+}: {
+  left: number | null;
+  total: number;
+  blocked: string | null;
+}) {
   if (blocked) {
     return (
       <div className="counter bad">
@@ -585,10 +619,16 @@ function Counter({ left, blocked }: { left: number; blocked: string | null }) {
   return (
     <div className="counter">
       <span>
-        <b>
-          {left} of {TOTAL_RECIPES}
-        </b>{" "}
-        recipes still fit.
+        {left === null ? (
+          "Counting the recipes that fit…"
+        ) : (
+          <>
+            <b>
+              {left} of {total}
+            </b>{" "}
+            recipes still fit.
+          </>
+        )}
       </span>
     </div>
   );

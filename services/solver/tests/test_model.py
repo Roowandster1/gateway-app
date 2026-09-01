@@ -60,11 +60,29 @@ def test_nothing_perishable_enters_the_cupboard(plan, aldi):
 
 
 def test_pantry_is_free_and_makes_week_two_cheaper(aldi):
+    """
+    The retention mechanic, measured where it actually lives.
+
+    This used to assert that a £30 plan costs less in week two, which was true
+    with 24 recipes and is not a claim the model ever made: given £30 and a
+    protein objective, spending £30 on more protein is the right answer, and a
+    larger catalogue simply found more ways to do it. The promise in CLAUDE.md
+    is that a stocked cupboard makes the week *cheaper to achieve*, so that is
+    what gets tested — the cheapest feasible week, which is what /floor reports
+    to the user as `first` versus `ongoing`.
+    """
     items, recipes = aldi
     wk1 = solve_plan(items, recipes, SolveParams(store="aldi", budget=30.0))
+
+    empty = cheapest_feasible_budget(items, recipes,
+                                     SolveParams(store="aldi", budget=999.0))
+    stocked = cheapest_feasible_budget(
+        items, recipes,
+        SolveParams(store="aldi", budget=999.0, pantry=wk1.closing_pantry))
+    assert stocked < empty, "a stocked cupboard must lower the cheapest week"
+
     wk2 = solve_plan(items, recipes,
                      SolveParams(store="aldi", budget=30.0, pantry=wk1.closing_pantry))
-    assert wk2.spend < wk1.spend
     assert wk2.protein_per_day >= config.DEFAULT_MIN_PROTEIN_PER_DAY
     # stock drawn from the cupboard is not paid for again
     for b in wk2.basket:
@@ -213,9 +231,14 @@ def test_jointly_binding_constraints_are_all_reported(aldi):
     """
     items, recipes = aldi
     with pytest.raises(Infeasible) as exc:
+        # 150g of protein and 2400 kcal on £8. The old figures (200g inside a
+        # 2300 kcal ceiling, no budget pressure) stopped binding jointly once
+        # the catalogue grew from 24 recipes to 223: with more ways to build a
+        # day, protein alone became reachable. Squeezing the budget as well is
+        # what now makes three constraints fail together.
         solve_plan(items, recipes,
-                   SolveParams(store="aldi", budget=30.0, min_protein_per_day=200.0,
-                               kcal_band=(2000.0, 2300.0)))
+                   SolveParams(store="aldi", budget=8.0, min_protein_per_day=150.0,
+                               kcal_band=(2400.0, 2600.0)))
     e = exc.value
     assert e.also_binding, "joint infeasibility reported only one constraint"
     assert len([e.binding] + e.also_binding) >= 2

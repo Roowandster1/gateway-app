@@ -35,6 +35,7 @@ class SolveParams:
     max_repeat: int = config.DEFAULT_MAX_REPEAT
     max_snacks_per_day: float = config.DEFAULT_MAX_SNACKS_PER_DAY
     min_distinct_mains: int = config.DEFAULT_MIN_DISTINCT_MAINS
+    min_distinct_proteins: int = config.DEFAULT_MIN_DISTINCT_PROTEINS
     pantry: dict[str, float] | None = None
     exclude_items: tuple[str, ...] = ()
     exclude_recipes: tuple[str, ...] = ()
@@ -252,6 +253,29 @@ def _build(items, recipes, params, *, elastic=False, enforce_budget=True) -> _Bu
     prob += (pulp.lpSum(z.values()) >= distinct_floor
              - slack("min_distinct_mains", distinct_floor)), "min_distinct_mains"
 
+    # Distinct *recipes* stopped meaning distinct *dinners* once the catalogue
+    # went from 24 hand-written recipes to 338 generated ones. Five different
+    # rows can now be lentils five different ways — "Lentil & carrot" and
+    # "Lentil & carrot rice (big portion)" both counted, and a week of that is
+    # not variety however the constraint scores it.
+    #
+    # So the floor is also applied to the protein a main is built on. This is a
+    # constraint, not a preference in the objective: the solver may not buy its
+    # way out of it, and it says so if it cannot be met.
+    by_protein: dict[str, list[str]] = {}
+    for s in mains:
+        key = recipes[s].main_protein or s
+        by_protein.setdefault(key, []).append(s)
+    if len(by_protein) > 1:
+        w = {k: pulp.LpVariable(f"w_{k}", cat="Binary") for k in by_protein}
+        for key, slugs in by_protein.items():
+            for s in slugs:
+                prob += w[key] >= z[s]
+            prob += w[key] <= pulp.lpSum(z[s] for s in slugs)
+        protein_floor = max(1, min(p.min_distinct_proteins, main_servings, len(by_protein)))
+        prob += (pulp.lpSum(w.values()) >= protein_floor
+                 - slack("min_distinct_proteins", protein_floor)), "min_distinct_proteins"
+
     carry_credit = config.CARRY_VALUE * pulp.lpSum(
         leftover[s] * items[s].unit_cost for s in items if carries[s])
     waste_cost = config.WASTE_PENALTY * pulp.lpSum(
@@ -283,10 +307,42 @@ def solve_plan(items: dict[str, Item], recipes: dict[str, Recipe],
         prob += b.net_cost
 
     status = prob.solve(pulp.PULP_CBC_CMD(msg=0, timeLimit=config.SOLVE_TIMEOUT_SECONDS))
-    if pulp.LpStatus[status] != "Optimal":
+
+    # A time limit is not an infeasibility, and reporting one as the other is
+    # the single thing SPEC §2 says an infeasible answer must never do. CBC
+    # returns "Not Solved" when it runs out of time, and the catalogue growing
+    # from 24 recipes to 223 made that reachable: the diagnosis then invented a
+    # binding constraint for a problem that has a perfectly good answer.
+    #
+    # If CBC found *an* incumbent before the clock ran out, that plan is real —
+    # every constraint holds, it is just not proved optimal — so it is returned.
+    # Only a run with no incumbent at all is handed to the diagnosis.
+    state = pulp.LpStatus[status]
+    if state != "Optimal":
+        # "Infeasible" is a proof and must be diagnosed. "Not Solved" is a clock,
+        # and CBC leaves the relaxation's values in the variables either way — so
+        # the status, not the variable values, is what separates them.
+        if state in ("Not Solved", "Undefined") and _has_incumbent(b.x, b.y):
+            return _extract(b.items, b.recipes, params, b.carries, b.pantry,
+                            b.x, b.y, prob)
         raise diagnose(items, recipes, params)
 
     return _extract(b.items, b.recipes, params, b.carries, b.pantry, b.x, b.y, prob)
+
+
+def _has_incumbent(x, y) -> bool:
+    """
+    Did CBC find a whole-number plan before the clock ran out?
+
+    Servings and pack counts are integer variables, so a fractional value means
+    this is the LP relaxation rather than a plan anyone could shop — that is not
+    an incumbent, and returning it would hand someone 2.4 bags of rice.
+    """
+    served = [float(v.value() or 0.0) for v in x.values()]
+    bought = [float(v.value() or 0.0) for v in y.values()]
+    if sum(served) <= 0.0 or sum(bought) <= 0.0:
+        return False
+    return all(abs(v - round(v)) < 1e-6 for v in served + bought)
 
 
 def _extract(items, recipes, params, carries, pantry, x, y, prob) -> Plan:
@@ -375,6 +431,8 @@ _PLAIN_ENGLISH = {
     "kcal_band_high": "The calorie ceiling is too low for these meals.",
     "max_cook_minutes_per_day": "The cooking-time ceiling is what cannot be met.",
     "min_distinct_mains": "There are not enough distinct main dishes available.",
+    "min_distinct_proteins": "The mains available are all built on too few "
+                             "different proteins.",
     "main_recipe_supply": "There are not enough main recipes to fill that many days.",
     "breakfast_recipe_supply": "There are not enough breakfast recipes to fill that many days.",
 }
@@ -465,6 +523,9 @@ def _detail(binding, absolute, params) -> str:
                 f"{p.max_cook_minutes_per_day:.0f} allowed.")
     if binding == "min_distinct_mains":
         return f"About {absolute:.0f} fewer distinct mains than requested are achievable."
+    if binding == "min_distinct_proteins":
+        return (f"About {absolute:.0f} fewer different proteins than requested are "
+                f"achievable across the mains.")
     if binding in ("kcal_band_low", "kcal_band_high"):
         return f"It misses the band by roughly {absolute / scale:.0f} kcal/day."
     return ""

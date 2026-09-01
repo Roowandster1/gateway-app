@@ -1149,3 +1149,100 @@ Still open, unchanged: **the receipt test**, persistence (P4), the NULL
 `carb_per_100`/`fat_per_100` columns, `docker compose up` — and now also a real
 catalogue gap this session made visible: **there is no gluten-free breakfast**,
 and only one dairy-free one.
+
+---
+
+## Session 19 — Generating recipes: 24 → 222, from the same 28 items
+
+Roo: *"Can I generate an infinite amount of recipes for all combinations?"*
+
+**No, and the reason matters.** A recipe is a set of rows pointing at *priced
+items*, so the space is bounded by the catalogue: 28 items cannot make ten
+thousand different dinners, only ten thousand rearrangements of lentils and
+rice. Going past that ceiling means adding priced items, and rule 3 means those
+need real observed prices — a shopping trip, not a script.
+
+**But the ceiling was nowhere near.** 23 of the 28 items are gluten-free and 25
+are dairy-free. The reason there was no gluten-free breakfast was that nobody
+had written one, not that the ingredients were missing.
+
+`services/solver/scripts/generate_recipes.py` enumerates the plausible space
+deterministically: role tables per meal slot, a sweet/savoury rule that kills
+banana-with-chicken in one line, hand-authored serving sizes, portions scaled
+until the plate lands in the slot's calorie band, and macros **computed from the
+item table**. No model is asked for an ingredient or a quantity — rule 1. Names
+come from a template so it runs with no network. The 24 hand-written recipes are
+used as the validation harness: if a rule rejects food a person already wrote,
+the rule is wrong. None were rejected.
+
+**Result: 24 → 222 recipes.**
+
+| | before | after |
+|---|---|---|
+| gluten-free breakfasts | **0** | 28 |
+| gluten-free mains | 6 | 80 |
+| dairy-free breakfasts | 1 | 31 |
+| bulk + fish-only + gluten-free | INFEASIBLE | £43.11 in 0.2s |
+| cheapest feasible week (Aldi) | £19.38 | ~£8–10 |
+
+The floor halving is the pack-reuse moat working: more ways to build a day means
+more ways to justify a pack already in the basket.
+
+**Four things the generator got wrong before it got them right**, all caught by
+reading its output rather than trusting it:
+1. Portions derived from a share of the calorie target put **235g of onion** in a
+   bolognese. Calories are the wrong axis for a vegetable; servings are now
+   hand-authored with only the base and protein scaled.
+2. `tortilla: 2` meant **two grams of wrap** — that item is priced by the 448g
+   pack, not by the each. A `check_servings` guard now fails the run if any
+   serving carries under 30 kcal.
+3. **Tuna porridge.** Oats needed their own whitelist.
+4. Styles were filtering every meal slot, so "one pot" wiped out breakfast.
+
+**And one genuine bug in the solver, which the bigger catalogue exposed:** CBC's
+time limit was being reported as *infeasible*. `LpStatus != "Optimal"` went
+straight to `diagnose()`, which invented a binding constraint for a problem that
+had a perfectly good answer. That is the exact failure SPEC §2 forbids. Now a
+proved "Infeasible" is diagnosed, while a run that hit the clock with a
+whole-number incumbent returns that plan.
+
+**Costs, stated plainly.** Every recipe is another integer variable. A 7-day
+solve went 1.7s → ~5s, a fortnight 2s → ~14s, and `/floor` (five solves) to 25s
+cold. Two fixes: a result cache in the solver process (safe because the solver is
+deterministic — a hit is the value CBC would have recomputed) taking a repeat to
+0.011s, and a new `/filters` endpoint that answers the onboarding's live counter
+with a set intersection instead of a solve, at 0.056s. The floor is now fetched
+only when the budget screen is reached, not on every filter tap.
+
+**Two tests were asserting things this work made false**, and both were rewritten
+rather than forced:
+- `test_gluten_free_empties_breakfast` asserted the gap. It now asserts the
+  opposite, and the blocked-reason mechanism is tested against a hand-built
+  report because no realistic diet empties a slot any more.
+- `test_pantry_is_free_and_makes_week_two_cheaper` asserted that a £30 plan costs
+  less in week two. Measured across `PROTEIN_COST_WEIGHT` 0.5–4.0, it does not
+  and should not: given £30 and a protein objective, spending £30 on more protein
+  is the right answer. The retention promise lives in the **floor** — £19.38
+  empty-cupboard versus ~£10 stocked — which is what `/floor` reports and the UI
+  shows. The test now measures that. **`PROTEIN_COST_WEIGHT` was left alone**;
+  changing it to make a wrong test pass would have been tuning to the test.
+
+Also added: a `min_distinct_proteins` constraint. Five distinct *recipes* stopped
+meaning five distinct *dinners* — "Lentil & carrot" and "Lentil & carrot rice
+(big portion)" both counted — so the variety floor now also applies to the
+protein a main is built on.
+
+**What this did not fix, and is now visible:**
+- **198 of 222 recipes have no photograph.** The placeholder is a labelled dashed
+  tile rather than a grey box, so it reads as "no picture yet" instead of a
+  broken image. Photographing 200 dishes is a separate job.
+- **No cooking steps** for the generated recipes. `generate_methods.py` exists
+  and every step goes through `method_check.py`; it has not been run over these.
+- **Names are template-generated** and plain: "Lentil & carrot rice". Honest,
+  not appetising.
+- The demo still carries its old 624-plan export against the 24-recipe
+  catalogue.
+
+Still open, unchanged: **the receipt test** — and it matters more now, not less.
+The floor moved from £19.38 to about £10 on numbers nobody has checked against a
+till.

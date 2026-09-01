@@ -61,10 +61,20 @@ DEFAULT_MAX_SNACKS_PER_DAY = _f("DEFAULT_MAX_SNACKS_PER_DAY", 2)
 # Without it, max_repeat caps a fortnight at roughly one snack a day.
 SNACK_REPEAT_MULTIPLIER = _i("SNACK_REPEAT_MULTIPLIER", 4)
 DEFAULT_MIN_DISTINCT_MAINS = _i("DEFAULT_MIN_DISTINCT_MAINS", 5)
+# How many different proteins the week's mains must be built on. Distinct
+# recipes stopped implying distinct dinners once the catalogue grew to 338:
+# five rows can be lentils five ways. Three is what the 9 protein items can
+# reliably support once a dietary filter has taken a couple away.
+DEFAULT_MIN_DISTINCT_PROTEINS = _i("DEFAULT_MIN_DISTINCT_PROTEINS", 3)
 
 # --- solver limits --------------------------------------------------------
 MAX_PACKS_PER_ITEM = _i("MAX_PACKS_PER_ITEM", 12)
-SOLVE_TIMEOUT_SECONDS = _i("SOLVE_TIMEOUT_SECONDS", 20)
+# CBC's wall-clock limit for one solve. A limit that is hit is NOT an
+# infeasibility — see _has_incumbent in model.py. Raised from 20s when the
+# catalogue went from 24 recipes to 223: a fortnight's plan legitimately needs
+# longer than 20 seconds now, and stopping early was turning good plans into
+# invented diagnoses.
+SOLVE_TIMEOUT_SECONDS = _i("SOLVE_TIMEOUT_SECONDS", 45)
 
 DATABASE_URL = os.environ.get(
     "DATABASE_URL", "postgresql://pantry:pantry@localhost:5432/pantry"
