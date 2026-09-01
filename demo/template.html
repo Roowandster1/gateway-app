@@ -1,306 +1,310 @@
 <title>Till Total</title>
 <!-- Archivo (variable, wdth 62-125) and IBM Plex Mono, self-hosted as woff2 data
      URIs. Google's stylesheet is a network dependency the page does not need, and
-     without the real variable font the condensed ticket numerals silently fall back
+     without the real variable font the condensed price numerals silently fall back
      to a normal-width system face — which is exactly what happened the first time. -->
 <style>__FONTS__</style>
 <style>
 /* ============================================================================
-   Till Total — shelf edge
-   The product is a supermarket price ticket and a till receipt, so the page is
-   one. Paper white on card grey, black ink, hairline rules, square corners, no
-   drop shadows, and a single price-flash yellow that only ever means "this one".
-   Nothing is soft. A budget app that looks like a spa is lying about the job.
+   Till Total
+   Clean, light, one brand colour. Density and honest numbers come from the
+   product; the surface stays quiet. Hairline rules, soft corners, no heavy
+   black slabs — the previous pass over-corrected into brutalism.
+   The accent is switchable while the palette is being chosen; see .picker.
    ========================================================================== */
 :root{
-  --board:#D5D2C9;      /* the shelf rail the tickets sit on */
-  --paper:#FFFFFF;      /* the ticket */
-  --paper-2:#F2F1ED;
-  --ink:#0A0A0A;
-  --ink-2:#57544E;
-  --rule:#CBC7BE;
-  --flash:#FFE81A;      /* price flash. Selection only. Never decoration. */
-  --flash-ink:#0A0A0A;
-  --red:#CE1B22; --red-bg:#FBE4E4;
-  --green:#0B6E4F;
-  /* Cost-split segments, unchanged from the validated set: lightness band,
-     chroma floor, CVD separation, normal-vision floor and contrast all pass
-     against this white surface. Do not nudge these by eye. */
+  --board:#F2F4F1; --paper:#FFFFFF; --paper-2:#F6F7F5;
+  --ink:#16181C; --ink-2:#5E626C; --rule:#E3E5E4;
+  --accent:#12805A; --soft:#E3F2EB; --on-accent:#FFFFFF;
+  --red:#C4342E; --red-bg:#FBEBEA;
+  --green:#12805A;
+  /* Cost-split segments. Validated with the dataviz palette checker against
+     both surfaces: lightness band, chroma floor, CVD separation, normal-vision
+     floor and contrast all pass. Do not nudge these by eye. */
   --seg-eaten:#2A5FA8; --seg-cupboard:#1C7A57; --seg-wasted:#B0512A;
   --sans:"Archivo",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
 }
+:root[data-palette="blue"]  {--accent:#1F53D6; --soft:#E8EDFC; --green:#12805A; --board:#F1F3F7}
+:root[data-palette="orange"]{--accent:#C0521E; --soft:#FBEBE1; --green:#12805A; --board:#F6F3EF}
+:root[data-palette="violet"]{--accent:#5B34C8; --soft:#EDE7FA; --green:#12805A; --board:#F3F2F7}
+
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
-    --board:#000000; --paper:#111110; --paper-2:#1B1A18;
-    --ink:#F3F1EB; --ink-2:#9C988E; --rule:#332F2A;
-    --flash:#FFE81A; --flash-ink:#0A0A0A;
-    --red:#FF6F66; --red-bg:#2C1312;
-    --green:#4FBE92;
+    --board:#0D0E10; --paper:#16181B; --paper-2:#1E2125;
+    --ink:#EDEEF0; --ink-2:#9AA0A9; --rule:#2A2D32;
+    --accent:#3DBE8C; --soft:#122A22; --on-accent:#06231A;
+    --red:#F0736C; --red-bg:#2B1514; --green:#3DBE8C;
     --seg-eaten:#5590D6; --seg-cupboard:#35A87C; --seg-wasted:#D0733F;
   }
-}
-:root[data-theme="dark"]{
-  --board:#000000; --paper:#111110; --paper-2:#1B1A18;
-  --ink:#F3F1EB; --ink-2:#9C988E; --rule:#332F2A;
-  --flash:#FFE81A; --flash-ink:#0A0A0A;
-  --red:#FF6F66; --red-bg:#2C1312;
-  --green:#4FBE92;
-  --seg-eaten:#5590D6; --seg-cupboard:#35A87C; --seg-wasted:#D0733F;
+  :root:not([data-theme="light"])[data-palette="blue"]  {--accent:#6E9BFF; --soft:#13203A; --on-accent:#05122E}
+  :root:not([data-theme="light"])[data-palette="orange"]{--accent:#E5905C; --soft:#2C1D14; --on-accent:#241004}
+  :root:not([data-theme="light"])[data-palette="violet"]{--accent:#A48CF5; --soft:#1D1734; --on-accent:#120A2C}
 }
 
 *{box-sizing:border-box}
 body{background:var(--board);color:var(--ink);font-family:var(--sans);
-  line-height:1.45;-webkit-font-smoothing:antialiased}
+  line-height:1.5;-webkit-font-smoothing:antialiased;margin:0}
 
-/* Ticket numerals: Archivo's width axis pulled in hard. Every price a shopper
-   reads at a glance is set in this. Small print and spec data stay monospaced,
-   because that is what a receipt does. */
-.tik{font-family:var(--sans);font-variation-settings:"wdth" 68,"wght" 800;
-  font-stretch:68%;font-weight:800;letter-spacing:-.01em;font-variant-numeric:tabular-nums;
-  line-height:.92}
-.lab{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.12em;
+/* Ticket numerals: Archivo's width axis, pulled in a little. Prices read at a
+   glance; spec data stays monospaced, the way a receipt prints it. */
+.tik{font-family:var(--sans);font-variation-settings:"wdth" 82,"wght" 750;
+  font-stretch:82%;font-weight:750;letter-spacing:-.015em;font-variant-numeric:tabular-nums;
+  line-height:1}
+.lab{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.1em;
   text-transform:uppercase;color:var(--ink-2)}
 
-/* ---- masthead: a printed header strip, not a hero ---- */
-.strip{background:var(--ink);color:var(--paper)}
-.strip .in{max-width:1080px;margin:0 auto;padding:11px 20px;display:flex;
-  align-items:baseline;gap:14px;flex-wrap:wrap}
-.strip h1{margin:0;font-size:26px;text-transform:uppercase;
-  font-variation-settings:"wdth" 70,"wght" 800;font-stretch:70%;font-weight:800;
-  letter-spacing:.02em}
-.strip p{margin:0;font-family:var(--mono);font-size:11px;letter-spacing:.06em;
-  text-transform:uppercase;color:var(--board);opacity:.85}
-.wrap{max-width:1080px;margin:0 auto;padding:22px 20px 56px}
-.cols{display:grid;grid-template-columns:minmax(0,398px) minmax(0,1fr);gap:26px;align-items:start}
-@media (max-width:860px){.cols{grid-template-columns:1fr;gap:22px}}
+/* ---- page ---- */
+.wrap{max-width:1080px;margin:0 auto;padding:20px 18px 48px}
+.masthead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.masthead h1{margin:0;font-size:25px;font-weight:700;letter-spacing:-.03em}
+.masthead p{margin:0;font-size:13px;color:var(--ink-2)}
+.cols{display:grid;grid-template-columns:minmax(0,398px) minmax(0,1fr);gap:24px;align-items:start}
+@media (max-width:860px){.cols{grid-template-columns:1fr;gap:16px}}
 
-/* ---- the ticket ---- */
-.phone{background:var(--paper);border:1.5px solid var(--ink);
-  display:flex;flex-direction:column;min-height:648px;position:relative}
-/* NOT .bar — that class was already the top bar once, and its align-items
-   collapsed the cost segments to zero height. Names here stay specific. */
-.topbar{display:flex;align-items:center;gap:10px;background:var(--ink);color:var(--paper);
-  padding:0 6px 0 4px;min-height:38px}
-.back{appearance:none;background:none;border:0;color:var(--paper);font-family:var(--sans);
-  font-size:17px;line-height:1;cursor:pointer;padding:9px 10px}
-.back:hover{background:rgba(255,255,255,.16)}
+/* ---- palette picker: a decision aid, not part of the product ---- */
+.picker{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 16px;
+  padding:9px 12px;background:var(--paper);border:1px solid var(--rule);border-radius:10px}
+.picker .lab{margin-right:2px}
+.sw{appearance:none;cursor:pointer;width:30px;height:30px;border-radius:50%;
+  border:2px solid var(--rule);padding:0}
+.sw[aria-pressed="true"]{border-color:var(--ink);box-shadow:0 0 0 2px var(--paper) inset}
+.sw:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.picker small{font-size:11.5px;color:var(--ink-2);flex:1;min-width:150px}
+
+/* ---- the app ---- */
+.phone{background:var(--paper);border:1px solid var(--rule);border-radius:14px;
+  overflow:hidden;display:flex;flex-direction:column;min-height:566px}
+.topbar{display:flex;align-items:center;gap:8px;padding:11px 12px 10px;
+  border-bottom:1px solid var(--rule)}
+.back{appearance:none;background:none;border:0;color:var(--ink);font-family:var(--sans);
+  font-size:16px;line-height:1;cursor:pointer;padding:6px 8px;border-radius:8px}
+.back:hover{background:var(--paper-2)}
 .back[hidden]{display:none!important}
-.topbar .lab{color:var(--paper);opacity:.9;font-size:10.5px}
-.topbar .idx{margin-left:auto;font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;
-  color:var(--flash)}
-.rail{display:flex;gap:2px;background:var(--ink);padding:0 0 2px}
-.rail i{height:3px;flex:1;background:rgba(255,255,255,.22)}
-.rail i.on{background:var(--flash)}
+.topbar .idx{margin-left:auto;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;
+  color:var(--ink-2)}
+.rail{display:flex;gap:3px;padding:0 12px;margin-top:10px}
+.rail i{height:3px;flex:1;background:var(--rule);border-radius:99px}
+.rail i.on{background:var(--accent)}
 .rail[hidden]{display:none!important}
 
-.screen{padding:20px 18px 20px;flex:1;display:flex;flex-direction:column}
+.screen{padding:16px 16px 18px;flex:1;display:flex;flex-direction:column}
 .screen[hidden]{display:none!important}
-.q{font-size:27px;margin:0 0 16px;letter-spacing:-.02em;font-weight:700;text-wrap:balance;
-  line-height:1.1}
-.q .sm{display:block;font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.12em;
-  text-transform:uppercase;color:var(--ink-2);margin-bottom:7px}
+.q{font-size:25px;margin:0 0 14px;letter-spacing:-.03em;font-weight:700;line-height:1.15;
+  text-wrap:balance}
+.q .sm{display:block;font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-2);margin-bottom:6px}
 
-/* ---- shelf tickets: the choice rows ---- */
-.choices{display:flex;flex-direction:column;gap:8px}
+/* ---- choice rows ---- */
+.choices{display:flex;flex-direction:column;gap:9px}
 .choice{appearance:none;text-align:left;width:100%;cursor:pointer;font-family:var(--sans);
-  background:var(--paper);border:1.5px solid var(--rule);padding:13px 14px;color:var(--ink);
-  display:flex;align-items:center;gap:12px}
-.choice:hover{border-color:var(--ink)}
-.choice:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
-.choice[aria-pressed="true"]{background:var(--flash);border-color:var(--ink);color:var(--flash-ink)}
-.choice[aria-pressed="true"] .dt,.choice[aria-pressed="true"] .num{color:var(--flash-ink);opacity:.72}
-.choice .nm{font-size:19px;font-weight:700;letter-spacing:-.02em;display:block}
-.choice .dt{font-size:12px;color:var(--ink-2);display:block;margin-top:1px}
+  background:var(--paper);border:1.5px solid var(--rule);border-radius:11px;padding:13px 14px;
+  color:var(--ink);display:flex;align-items:center;gap:12px;transition:border-color .12s,background .12s}
+.choice:hover{border-color:var(--ink-2)}
+.choice:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.choice[aria-pressed="true"]{border-color:var(--accent);background:var(--soft)}
+.choice .nm{font-size:18px;font-weight:700;letter-spacing:-.025em;display:block}
+.choice .dt{font-size:12.5px;color:var(--ink-2);display:block;margin-top:1px}
 .choice .num{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-2);
-  text-align:right;white-space:nowrap;line-height:1.35}
+  text-align:right;white-space:nowrap;line-height:1.4}
 
-/* ---- day chips: discrete stops, tapped not dragged ---- */
-.chips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.chip{appearance:none;cursor:pointer;font-family:var(--sans);background:var(--paper);
-  border:1.5px solid var(--rule);color:var(--ink);padding:14px 6px 12px;text-align:center}
-.chip:hover{border-color:var(--ink)}
-.chip:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
-.chip[aria-pressed="true"]{background:var(--flash);border-color:var(--ink);color:var(--flash-ink)}
-.chip .n{display:block;font-size:32px}
-.chip .u{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.1em;
-  text-transform:uppercase;color:var(--ink-2);margin-top:3px}
-.chip[aria-pressed="true"] .u{color:var(--flash-ink);opacity:.72}
+/* ---- sliders ---- */
+.readout{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
+  margin:4px 0 2px}
+.readout .big{font-size:52px}
+.readout .rt{text-align:right;padding-bottom:5px}
+.track{position:relative;padding:14px 0 4px}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;background:transparent;
+  cursor:pointer;margin:0;display:block;height:30px}
+input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:99px;
+  background:linear-gradient(to right,var(--accent) var(--pct,50%),var(--rule) var(--pct,50%))}
+input[type=range]::-moz-range-track{height:8px;border-radius:99px;background:var(--rule)}
+input[type=range]::-moz-range-progress{height:8px;border-radius:99px;background:var(--accent)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;
+  border-radius:50%;background:var(--paper);border:2.5px solid var(--accent);margin-top:-10px;
+  box-shadow:0 1px 4px rgba(0,0,0,.16)}
+input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;
+  background:var(--paper);border:2.5px solid var(--accent);box-shadow:0 1px 4px rgba(0,0,0,.16)}
+input[type=range]:focus-visible{outline:3px solid var(--accent);outline-offset:4px;
+  border-radius:99px}
+/* The floor is a real, solved number, so it is marked on the track rather than
+   left as a sentence underneath. */
+.floorpin{position:absolute;top:14px;height:30px;width:2px;background:var(--ink);
+  opacity:.5;pointer-events:none;transform:translateX(-1px)}
+.floorpin b{position:absolute;top:-13px;left:50%;transform:translateX(-50%);
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;white-space:nowrap;
+  color:var(--ink-2);font-weight:500}
+.scale{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10.5px;
+  color:var(--ink-2);margin-top:2px}
 
-/* ---- keypad: you punch a budget into a till, you don't drag it ---- */
-.amount{border:1.5px solid var(--ink);background:var(--paper-2);padding:14px 16px 12px;
-  display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:10px}
-.amount .big{font-size:56px}
-.amount .rt{text-align:right}
-.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
-.key{appearance:none;cursor:pointer;font-family:var(--sans);font-size:23px;font-weight:700;
-  background:var(--paper);border:1.5px solid var(--rule);color:var(--ink);padding:11px 0;
-  font-variant-numeric:tabular-nums}
-.key:hover{border-color:var(--ink)}
-.key:active{background:var(--flash);border-color:var(--ink)}
-.key:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
-.key.fn{font-size:12px;font-family:var(--mono);letter-spacing:.08em;color:var(--ink-2)}
-.floormark{margin-top:12px;padding:9px 11px;font-size:12.5px;background:var(--paper-2);
-  border-left:4px solid var(--ink);color:var(--ink-2)}
-.floormark.under{background:var(--red-bg);border-left-color:var(--red);color:var(--red)}
+.floormark{margin-top:14px;padding:10px 12px;border-radius:10px;font-size:12.5px;
+  background:var(--paper-2);color:var(--ink-2);line-height:1.5}
+.floormark.under{background:var(--red-bg);color:var(--red)}
 .floormark b{font-family:var(--mono);font-weight:600}
-.snap{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--ink-2);
-  margin:8px 0 0}
 
 .cta{margin-top:auto;padding-top:18px}
-.btn{appearance:none;width:100%;cursor:pointer;font-family:var(--sans);font-size:15px;
-  font-weight:700;text-transform:uppercase;letter-spacing:.08em;padding:15px;
-  border:1.5px solid var(--ink);background:var(--ink);color:var(--paper)}
-.btn:hover{background:var(--flash);color:var(--flash-ink)}
-.btn:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
-.btn:disabled{opacity:.35;cursor:default}
-.btn:disabled:hover{background:var(--ink);color:var(--paper)}
-.btn.ghost{background:var(--paper);color:var(--ink)}
-.btn.ghost:hover{background:var(--flash)}
+.btn{appearance:none;width:100%;cursor:pointer;font-family:var(--sans);font-size:15.5px;
+  font-weight:700;letter-spacing:-.01em;padding:15px;border-radius:11px;border:1.5px solid var(--accent);
+  background:var(--accent);color:var(--on-accent);transition:filter .12s}
+.btn:hover{filter:brightness(1.08)}
+.btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.ghost{background:var(--paper);color:var(--ink);border-color:var(--rule)}
+.btn.ghost:hover{background:var(--paper-2);filter:none}
 
 /* ---- the plan ---- */
-.split{border-bottom:3px solid var(--ink);padding-bottom:14px;margin-bottom:14px}
+.split{border-bottom:1px solid var(--rule);padding-bottom:14px;margin-bottom:14px}
 .split .hero{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
   margin-bottom:12px}
-.split .hero .n{font-size:60px}
-.split .hero .l{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
-  color:var(--ink-2);text-align:right;line-height:1.5;padding-bottom:4px}
-.costbar{display:flex;align-items:stretch;height:16px;gap:2px;background:var(--paper);
-  border:1.5px solid var(--ink)}
+.split .hero .n{font-size:50px}
+.split .hero .l{font-family:var(--mono);font-size:10.5px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink-2);text-align:right;line-height:1.5;padding-bottom:5px}
+.costbar{display:flex;align-items:stretch;height:14px;gap:2px;border-radius:99px;overflow:hidden}
 .costbar span{display:block;min-width:3px;height:100%}
 .costbar .s-eaten{background:var(--seg-eaten)}
 .costbar .s-cupboard{background:var(--seg-cupboard)}
 .costbar .s-wasted{background:var(--seg-wasted)}
-.key-list{display:flex;flex-direction:column;gap:3px;margin-top:10px}
-.key-list div{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2)}
-.key-list i{width:10px;height:10px;flex-shrink:0}
+.key-list{display:flex;flex-direction:column;gap:4px;margin-top:11px}
+.key-list div{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--ink-2)}
+.key-list i{width:10px;height:10px;border-radius:3px;flex-shrink:0}
 .key-list .nm{flex:1}
 .key-list b{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--ink);
   font-variant-numeric:tabular-nums}
-.key-list .pc{font-family:var(--mono);font-size:10.5px;color:var(--ink-2);width:30px;text-align:right}
-.split .caption{font-size:11.5px;color:var(--ink-2);margin:10px 0 0;line-height:1.45}
+.key-list .pc{font-family:var(--mono);font-size:10.5px;width:32px;text-align:right}
+.split .caption{font-size:12px;color:var(--ink-2);margin:11px 0 0;line-height:1.5}
 
-.tabs{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1.5px solid var(--ink);
-  margin-bottom:2px}
-.tab{appearance:none;border:0;background:var(--paper);font-family:var(--mono);font-size:11px;
-  font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);padding:11px 4px;
-  cursor:pointer}
-.tab+.tab{border-left:1.5px solid var(--ink)}
-.tab[aria-selected="true"]{background:var(--ink);color:var(--paper)}
-/* A tab is white when idle and black when selected, so neither an ink nor a
-   flash ring is visible in both. Focus repaints the tab instead. */
-.tab:focus-visible{background:var(--flash);color:var(--flash-ink);
-  outline:3px solid var(--ink);outline-offset:-3px}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:3px;background:var(--paper-2);
+  border-radius:10px;padding:3px;margin-bottom:6px}
+.tab{appearance:none;border:0;background:none;font-family:var(--sans);font-size:13.5px;
+  font-weight:600;color:var(--ink-2);padding:9px 4px;cursor:pointer;border-radius:8px}
+.tab[aria-selected="true"]{background:var(--paper);color:var(--ink);
+  box-shadow:0 1px 2px rgba(0,0,0,.07)}
+.tab:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
 
-.pane{flex:1;overflow-y:auto;max-height:424px;margin:0 -2px;padding:0 2px}
+.pane{flex:1;overflow-y:auto;max-height:420px;margin:0 -2px;padding:0 2px}
 /* A row sliced flat at the cap reads as the end of the list. Fade the last
    26px only while there is more below, so the real last row is never faded. */
 .pane.more{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent);
            mask-image:linear-gradient(to bottom,#000 calc(100% - 26px),transparent)}
-.pane:focus-visible{outline:3px solid var(--ink);outline-offset:-3px}
+.pane:focus-visible{outline:3px solid var(--accent);outline-offset:-3px;border-radius:8px}
 .pane[hidden]{display:none!important}
 
-.slot-head{background:var(--ink);color:var(--paper);font-family:var(--mono);font-size:10.5px;
-  letter-spacing:.13em;text-transform:uppercase;padding:4px 7px;margin:12px 0 0;
+.slot-head{background:var(--paper-2);border-radius:7px;font-family:var(--mono);font-size:10.5px;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);padding:5px 9px;margin:12px 0 2px;
   display:flex;justify-content:space-between}
-.slot-head:first-child{margin-top:0}
+.slot-head:first-child{margin-top:4px}
 .meal{border-bottom:1px solid var(--rule)}
-.meal>summary{display:flex;gap:10px;padding:9px 0;align-items:center;cursor:pointer;list-style:none}
+.meal:last-of-type{border-bottom:0}
+.meal>summary{display:flex;gap:11px;padding:9px 2px;align-items:center;cursor:pointer;
+  list-style:none;border-radius:8px}
 .meal>summary::-webkit-details-marker{display:none}
-.meal>summary:focus-visible{outline:3px solid var(--ink);outline-offset:-2px}
+.meal>summary:hover{background:var(--paper-2)}
+.meal>summary:focus-visible{outline:3px solid var(--accent);outline-offset:-2px}
 .shot{width:50px;height:50px;object-fit:cover;flex-shrink:0;background:var(--paper-2);
-  border:1px solid var(--rule)}
-.mult{font-family:var(--sans);font-variation-settings:"wdth" 70,"wght" 800;font-stretch:70%;
-  font-weight:800;font-size:15px;color:var(--flash-ink);background:var(--flash);
-  border:1px solid var(--ink);padding:2px 5px;flex-shrink:0;line-height:1}
-.meal .nm{font-size:14.5px;font-weight:600;flex:1;letter-spacing:-.015em;line-height:1.25}
+  border-radius:9px}
+.mult{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--accent);
+  background:var(--soft);border-radius:6px;padding:3px 6px;flex-shrink:0;line-height:1}
+.meal .nm{font-size:14.5px;font-weight:600;flex:1;letter-spacing:-.02em;line-height:1.3}
 .meal .mac{font-family:var(--mono);font-size:10.5px;color:var(--ink-2);text-align:right;
-  white-space:nowrap;font-variant-numeric:tabular-nums;line-height:1.4}
+  white-space:nowrap;font-variant-numeric:tabular-nums;line-height:1.45}
 .chev{color:var(--ink-2);font-size:10px;transition:transform .15s;flex-shrink:0}
 .meal[open] .chev{transform:rotate(90deg)}
-.method{padding:0 0 14px 60px}
+.method{padding:0 2px 14px 63px}
 .method .desc{font-size:12.5px;color:var(--ink-2);margin:0 0 9px}
-.method ol{margin:0;padding-left:16px;display:flex;flex-direction:column;gap:6px}
-.method li{font-size:13px;line-height:1.45}
+.method ol{margin:0;padding-left:17px;display:flex;flex-direction:column;gap:6px}
+.method li{font-size:13px;line-height:1.5}
 .method li::marker{font-family:var(--mono);font-size:11px;color:var(--ink-2)}
 .method .src{font-family:var(--mono);font-size:10.5px;color:var(--ink-2);margin:10px 0 0;
-  padding-top:7px;border-top:1px solid var(--rule);letter-spacing:.03em}
+  padding-top:8px;border-top:1px solid var(--rule);letter-spacing:.02em}
 
-.aisle{background:var(--ink);color:var(--paper);font-family:var(--mono);font-size:10.5px;
-  letter-spacing:.13em;text-transform:uppercase;padding:4px 7px;margin-top:12px;
+.aisle{background:var(--paper-2);border-radius:7px;font-family:var(--mono);font-size:10.5px;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2);padding:5px 9px;margin-top:12px;
   position:sticky;top:0;z-index:1}
-.line{display:flex;gap:10px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--rule);
-  cursor:pointer}
-.line input{margin:0;accent-color:var(--ink);width:16px;height:16px;flex-shrink:0;
-  position:relative;top:2px;cursor:pointer}
+.line{display:flex;gap:11px;align-items:baseline;padding:9px 2px;
+  border-bottom:1px solid var(--rule);cursor:pointer}
+.line input{margin:0;accent-color:var(--accent);width:17px;height:17px;flex-shrink:0;
+  position:relative;top:3px;cursor:pointer}
 .line.ticked .lbl,.line.ticked .amt{opacity:.4;text-decoration:line-through}
-.line .lbl{flex:1;font-size:13.5px;letter-spacing:-.01em;font-weight:500}
-.line .qty{font-family:var(--mono);font-size:10.5px;color:var(--ink-2);display:block;margin-top:1px;
+.line .lbl{flex:1;font-size:13.5px;letter-spacing:-.015em;font-weight:500}
+.line .qty{font-family:var(--mono);font-size:10.5px;color:var(--ink-2);display:block;margin-top:2px;
   text-decoration:none!important;letter-spacing:.02em}
 .line .amt{font-family:var(--mono);font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;
   white-space:nowrap}
-.pill{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.05em;
-  text-transform:uppercase;padding:1px 4px;margin-left:5px;vertical-align:1px;
-  border:1px solid currentColor}
+.pill{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.03em;
+  padding:1px 6px;border-radius:5px;margin-left:6px;vertical-align:1px;background:var(--paper-2)}
 .pill.carry{color:var(--green)}
 .pill.waste{color:var(--seg-wasted)}
 .tally{display:flex;justify-content:space-between;align-items:flex-end;margin-top:14px;
-  padding-top:11px;border-top:3px solid var(--ink)}
-.tally .n{font-size:26px}
-.tally .l{font-family:var(--mono);font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;
-  color:var(--ink-2);padding-bottom:4px}
+  padding-top:12px;border-top:1px solid var(--rule)}
+.tally .n{font-size:24px}
+.tally .l{font-family:var(--mono);font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink-2);padding-bottom:5px}
 
 /* ---- infeasible ---- */
-.stop{border:1.5px solid var(--red);background:var(--red-bg);padding:15px;margin-bottom:12px}
-.stop h3{margin:0 0 7px;font-size:18px;color:var(--red);letter-spacing:-.02em;
-  text-transform:uppercase;font-variation-settings:"wdth" 78,"wght" 800;font-stretch:78%}
-.stop p{margin:0 0 10px;font-size:13.5px;color:var(--ink);line-height:1.45}
+.stop{border:1.5px solid var(--red);background:var(--red-bg);border-radius:11px;padding:15px;
+  margin-bottom:12px}
+.stop h3{margin:0 0 7px;font-size:17px;color:var(--red);letter-spacing:-.02em;font-weight:700}
+.stop p{margin:0 0 10px;font-size:13.5px;color:var(--ink);line-height:1.5}
 .stop p:last-child{margin-bottom:0}
-.blocker{font-family:var(--mono);font-size:10.5px;background:var(--paper);
-  border:1px solid var(--red);padding:2px 6px;display:inline-block;margin:0 3px 4px 0}
+.blocker{font-family:var(--mono);font-size:10.5px;background:var(--paper);border-radius:6px;
+  border:1px solid var(--rule);padding:2px 7px;display:inline-block;margin:0 3px 4px 0}
 
-.note{font-family:var(--mono);font-size:10.5px;color:var(--ink-2);margin-top:12px;
-  padding-top:10px;border-top:1px solid var(--rule);line-height:1.55;letter-spacing:.02em}
-.note b{color:var(--ink)}
+.note{font-size:11.5px;color:var(--ink-2);margin-top:12px;padding-top:10px;
+  border-top:1px solid var(--rule);line-height:1.55}
+.note b{color:var(--ink);font-weight:600}
 
 /* ---- the proof column ---- */
-.side{display:flex;flex-direction:column;gap:16px;position:sticky;top:22px}
+.side{display:flex;flex-direction:column;gap:14px;position:sticky;top:20px}
 @media (max-width:860px){.side{position:static}}
-.card{background:var(--paper);border:1.5px solid var(--ink)}
-.card h2{margin:0;background:var(--ink);color:var(--paper);font-family:var(--mono);font-size:10.5px;
-  font-weight:600;letter-spacing:.13em;text-transform:uppercase;padding:6px 12px}
-.card .body{padding:14px 14px 16px}
-.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-family:var(--mono);font-size:11.5px;
-  margin:0}
+.card{background:var(--paper);border:1px solid var(--rule);border-radius:12px;overflow:hidden}
+.card>summary{list-style:none;cursor:pointer;padding:12px 14px;display:flex;align-items:center;
+  gap:8px;font-size:13.5px;font-weight:600}
+.card>summary::-webkit-details-marker{display:none}
+.card>summary:hover{background:var(--paper-2)}
+.card>summary:focus-visible{outline:3px solid var(--accent);outline-offset:-3px}
+.card>summary .mark{margin-left:auto;color:var(--ink-2);font-size:11px;transition:transform .15s}
+.card[open]>summary .mark{transform:rotate(90deg)}
+.card[open]>summary{border-bottom:1px solid var(--rule)}
+.card .body{padding:14px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:7px 14px;font-family:var(--mono);
+  font-size:11.5px;margin:0}
 .kv dt{color:var(--ink-2);white-space:nowrap}
 .kv dd{margin:0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-.status{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.11em;
-  text-transform:uppercase;padding:2px 7px;font-weight:600;border:1px solid currentColor}
+.status{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.09em;
+  text-transform:uppercase;padding:2px 8px;border-radius:5px;font-weight:600;background:var(--paper-2)}
 .status.ok{color:var(--green)}
 .status.no{color:var(--red)}
 .status.idle{color:var(--ink-2)}
-.facts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
-.facts li{font-size:13px;color:var(--ink-2);line-height:1.45;display:flex;gap:9px}
+.facts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:11px}
+.facts li{font-size:13px;color:var(--ink-2);line-height:1.5;display:flex;gap:10px}
 .facts li b{color:var(--ink);font-weight:700}
-.facts .h{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
-  color:var(--ink);flex:0 0 74px;padding-top:2px}
+.facts .h{font-family:var(--mono);font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink);flex:0 0 72px;padding-top:2px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 
-<header class="strip">
-  <div class="in">
-    <h1>Till Total</h1>
-    <p>Meals for what you said you'd spend</p>
-  </div>
-</header>
-
 <div class="wrap">
+  <header class="masthead">
+    <h1>Till Total</h1>
+    <p>Meals for what you said you&rsquo;d spend.</p>
+  </header>
+
+  <div class="picker" id="picker">
+    <span class="lab">Colour</span>
+    <button class="sw" data-pal="fresh"  style="background:#12805A" aria-label="Green"></button>
+    <button class="sw" data-pal="blue"   style="background:#1F53D6" aria-label="Blue"></button>
+    <button class="sw" data-pal="orange" style="background:#C0521E" aria-label="Orange"></button>
+    <button class="sw" data-pal="violet" style="background:#5B34C8" aria-label="Violet"></button>
+    <small>Tap one and the whole app changes. Tell me the colour you want and this
+      picker comes out.</small>
+  </div>
+
   <div class="cols">
     <div class="phone">
       <div class="topbar">
         <button class="back" id="back" hidden aria-label="Go back">&larr;</button>
         <span class="lab" id="stepName">Where you shop</span>
-        <span class="idx" id="stepIdx">01/04</span>
+        <span class="idx" id="stepIdx">1 of 4</span>
       </div>
       <div class="rail" id="rail"></div>
 
@@ -314,35 +318,33 @@ body{background:var(--board);color:var(--ink);font-family:var(--sans);
       <!-- 2. duration -->
       <section class="screen" id="s-days" hidden>
         <h2 class="q"><span class="sm">Step two</span>How long for?</h2>
-        <div class="chips" id="dayChips"></div>
+        <div class="readout">
+          <span class="tik big" id="daysRead"></span>
+          <span class="rt lab" id="daysSub"></span>
+        </div>
+        <div class="track">
+          <input type="range" id="daysRange" min="0" max="5" step="1" value="4"
+                 aria-label="Plan length">
+        </div>
+        <div class="scale"><span>1 day</span><span>2 weeks</span></div>
         <p class="note" id="daysNote"></p>
         <div class="cta"><button class="btn" data-next="budget">Continue</button></div>
       </section>
 
       <!-- 3. budget -->
       <section class="screen" id="s-budget" hidden>
-        <h2 class="q"><span class="sm">Step three</span>What's the budget?</h2>
-        <div class="amount">
+        <h2 class="q"><span class="sm">Step three</span>What&rsquo;s the budget?</h2>
+        <div class="readout">
           <span class="tik big" id="budgetRead">£30</span>
           <span class="rt lab" id="budgetSub"></span>
         </div>
-        <div class="pad" id="pad">
-          <button class="key" data-k="1">1</button>
-          <button class="key" data-k="2">2</button>
-          <button class="key" data-k="3">3</button>
-          <button class="key" data-k="4">4</button>
-          <button class="key" data-k="5">5</button>
-          <button class="key" data-k="6">6</button>
-          <button class="key" data-k="7">7</button>
-          <button class="key" data-k="8">8</button>
-          <button class="key" data-k="9">9</button>
-          <button class="key fn" data-k="clear">Clear</button>
-          <button class="key" data-k="0">0</button>
-          <button class="key fn" data-k="del" aria-label="Delete last digit">Del</button>
+        <div class="track" id="budgetTrack">
+          <input type="range" id="budgetRange" min="0" max="12" step="1" value="6"
+                 aria-label="Budget">
         </div>
-        <p class="snap" id="budgetSnap"></p>
+        <div class="scale" id="budgetScale"></div>
         <div class="floormark" id="floorMark"></div>
-        <div class="cta"><button class="btn" data-next="goal" id="budgetNext">Continue</button></div>
+        <div class="cta"><button class="btn" data-next="goal">Continue</button></div>
       </section>
 
       <!-- 4. goal -->
@@ -375,12 +377,12 @@ body{background:var(--board);color:var(--ink);font-family:var(--sans);
     </div>
 
     <aside class="side">
-      <div class="card">
-        <h2>What the solver was asked</h2>
+      <details class="card" id="cardSolver">
+        <summary>What the solver was asked<span class="mark">&#9654;</span></summary>
         <div class="body"><dl class="kv" id="kv"></dl></div>
-      </div>
-      <div class="card">
-        <h2>Why this is not a chatbot</h2>
+      </details>
+      <details class="card">
+        <summary>Why this is not a chatbot<span class="mark">&#9654;</span></summary>
         <div class="body">
           <ul class="facts">
             <li><span class="h">Packs</span><span>70g of lentils costs a whole 99p bag. Cost is
@@ -395,7 +397,7 @@ body{background:var(--board);color:var(--ink);font-family:var(--sans);
               A checker rejects any step stating an amount.</span></li>
           </ul>
         </div>
-      </div>
+      </details>
     </aside>
   </div>
 </div>
@@ -416,35 +418,42 @@ body{background:var(--board);color:var(--ink);font-family:var(--sans);
                     goal:"What you're eating for", plan:"Your plan"};
 
   var DAYS = DATA.days;
-  // The demo cannot call the solver, so it carries a fixed grid of solved
-  // budgets. The keypad takes any number and the nearest solved one is used —
-  // said out loud rather than hidden, because the two figures differ.
   var RAW = {};
   Object.keys(DATA.plans).forEach(function(k){
     var p = k.split("|");
     RAW[p[1] + "|" + parseFloat(p[3])] = p[3];
   });
 
-  var state = {store:"aldi", days:7, budgetInput:"35", goal:"maintain", step:"store",
+  var state = {store:"aldi", days:7, budgetIx:6, goal:"maintain", step:"store",
                tab:"meals", ticked:{}};
 
   var $ = function(id){ return document.getElementById(id); };
   var money = function(n){ return "£" + Number(n).toFixed(2); };
-  var pounds = function(n){ return "£" + Math.round(Number(n)); };
   var esc = function(s){ return String(s).replace(/[&<>"]/g, function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); };
 
-  function stops(){ return DATA.budgets[String(state.days)]; }
-  function typed(){ return state.budgetInput === "" ? null : parseInt(state.budgetInput, 10); }
-  function budget(){
-    var l = stops(), t = typed();
-    if (t === null) return l[0];
-    var best = l[0];
-    for (var i = 1; i < l.length; i++){
-      if (Math.abs(l[i] - t) < Math.abs(best - t)) best = l[i];
-    }
-    return best;
+  /* ---------- palette picker (a decision aid, not the product) ---------- */
+  var PALS = ["fresh","blue","orange","violet"];
+  function setPal(p){
+    if (p === "fresh") delete document.documentElement.dataset.palette;
+    else document.documentElement.dataset.palette = p;
+    try { localStorage.setItem("tt-pal", p); } catch (e) {}
+    [].forEach.call(document.querySelectorAll(".sw"), function(b){
+      b.setAttribute("aria-pressed", String(b.dataset.pal === p));
+    });
   }
+  var saved = "fresh";
+  try { saved = localStorage.getItem("tt-pal") || "fresh"; } catch (e) {}
+  if (PALS.indexOf(saved) < 0) saved = "fresh";
+  setPal(saved);
+  $("picker").addEventListener("click", function(e){
+    var b = e.target.closest("[data-pal]");
+    if (b) setPal(b.dataset.pal);
+  });
+
+  /* ---------- derived ---------- */
+  function stops(){ return DATA.budgets[String(state.days)]; }
+  function budget(){ var l = stops(); return l[Math.min(state.budgetIx, l.length-1)]; }
   function periodWord(){
     return state.days === 7 ? "week" : state.days === 14 ? "fortnight"
          : state.days === 1 ? "day" : state.days + " days";
@@ -457,6 +466,12 @@ body{background:var(--board);color:var(--ink);font-family:var(--sans);
     return DATA.floors[state.store+"|"+state.days+"|"+state.goal] || {first:null, ongoing:null};
   }
   function plural(n, word){ return n + " " + word + (n === 1 ? "" : "s"); }
+
+  /** Paints the filled portion of a range track. */
+  function fill(el){
+    var min = +el.min, max = +el.max, v = +el.value;
+    el.style.setProperty("--pct", (max > min ? (v-min)/(max-min)*100 : 0) + "%");
+  }
 
   /* ---------- step 1: store ---------- */
   function renderStores(){
@@ -471,32 +486,53 @@ body{background:var(--board);color:var(--ink);font-family:var(--sans);
 
   /* ---------- step 2: length ---------- */
   function renderDays(){
-    $("dayChips").innerHTML = DAYS.map(function(d){
-      var n = d % 7 === 0 ? d / 7 : d;
-      var u = d % 7 === 0 ? (d === 7 ? "week" : "weeks") : (d === 1 ? "day" : "days");
-      return '<button class="chip" data-days="'+d+'" aria-pressed="'+(state.days===d)+'">'
-        + '<span class="tik n">'+n+'</span><span class="u">'+u+'</span></button>';
-    }).join("");
-
-    var d = state.days, note = plural(d * 3, "meal");
+    var d = state.days, ix = DAYS.indexOf(d);
+    var r = $("daysRange");
+    r.max = String(DAYS.length - 1);
+    r.value = String(ix < 0 ? 0 : ix);
+    fill(r);
+    $("daysRead").textContent = d % 7 === 0 ? (d/7) + (d === 7 ? " week" : " weeks")
+                                            : d + (d === 1 ? " day" : " days");
+    $("daysSub").innerHTML = plural(d * 3, "meal") + "<br>for one";
     $("daysNote").textContent = d === 14
-      ? note + ". Two shops, a week apart, so nothing fresh has to last a fortnight."
+      ? "Two shops, a week apart, so nothing fresh has to last a fortnight."
       : d <= 2
-        ? note + ". Packs are whole, so most of a short shop is stock you keep."
-        : note + ". One shop.";
+        ? "Packs are whole, so most of a short shop is stock you keep."
+        : "One shop.";
   }
 
   /* ---------- step 3: budget ---------- */
   function renderBudget(){
-    var t = typed(), b = budget(), floor = floorFor();
-    $("budgetRead").textContent = t === null ? "£—" : pounds(t);
+    var list = stops(), b = budget(), floor = floorFor();
+    var r = $("budgetRange");
+    r.max = String(list.length - 1);
+    r.value = String(Math.min(state.budgetIx, list.length - 1));
+    fill(r);
+    $("budgetRead").textContent = money(b).replace(/\.00$/, "");
     $("budgetSub").innerHTML = "For one<br>at " + esc(STORE_NAMES[state.store])
       + "<br>" + (state.days === 1 ? "1 day" : plural(state.days, "day"));
-    $("budgetNext").disabled = t === null;
+    $("budgetScale").innerHTML = "<span>" + money(list[0]).replace(/\.00$/,"") + "</span>"
+      + "<span>" + money(list[list.length-1]).replace(/\.00$/,"") + "</span>";
 
-    $("budgetSnap").textContent = (t !== null && Math.abs(b - t) >= 0.01)
-      ? "Demo carries " + stops().length + " solved budgets. Nearest is " + money(b) + "."
-      : "";
+    // Mark the measured floor on the track itself. The old build's slider started
+    // at £25 and implied that was the minimum; the real Aldi floor is lower, and
+    // the range now runs well below it so a small budget is reachable and simply
+    // comes back as infeasible.
+    var pin = $("budgetTrack").querySelector(".floorpin");
+    if (pin) pin.remove();
+    if (floor.first != null && list.length > 1){
+      var lo = list[0], hi = list[list.length-1];
+      if (floor.first > lo && floor.first < hi){
+        var pct = (floor.first - lo) / (hi - lo);
+        // The thumb is 28px, so the usable track is inset by half a thumb at
+        // each end; the pin has to sit in that same space to line up.
+        var el = document.createElement("span");
+        el.className = "floorpin";
+        el.style.left = "calc(14px + " + pct + " * (100% - 28px))";
+        el.innerHTML = "<b>floor</b>";
+        $("budgetTrack").appendChild(el);
+      }
+    }
 
     var mark = $("floorMark");
     if (floor.first == null){
@@ -655,7 +691,7 @@ body{background:var(--board);color:var(--ink);font-family:var(--sans);
     var blockers = [p.binding].concat(p.also_binding || []);
     var canFix = p.min_feasible_budget != null;
     $("planNo").innerHTML = '<div class="stop">'
-      + '<h3>' + (canFix ? "That budget doesn't exist here" : "This one can't be done") + '</h3>'
+      + '<h3>' + (canFix ? "That budget doesn't work here" : "This one can't be done") + '</h3>'
       + '<p>' + esc(p.suggestion) + '</p>'
       + '<p>' + blockers.map(function(b){ return '<span class="blocker">'+esc(b)+'</span>'; }).join("")
       + '</p></div>'
@@ -665,12 +701,13 @@ body{background:var(--board);color:var(--ink);font-family:var(--sans);
       + 'targets, so it names what blocked it rather than serving you a worse week.</p>';
     var uf = $("useFloor");
     if (uf) uf.addEventListener("click", function(){
-      state.budgetInput = String(Math.ceil(p.min_feasible_budget));
+      var list = stops(), f = p.min_feasible_budget;
+      for (var i=0;i<list.length;i++){ if (list[i] >= f){ state.budgetIx = i; break; } }
       state.step = "budget"; state.ticked = {}; render();
     });
   }
 
-  /* ---------- the proof column ---------- */
+  /* ---------- the proof panel ---------- */
   function renderKv(){
     var p = state.step === "plan" ? currentPlan() : null;
     var rows = [
@@ -705,8 +742,8 @@ body{background:var(--board);color:var(--ink);font-family:var(--sans);
     var ix = STEPS.indexOf(state.step);
     $("back").hidden = ix === 0;
     $("stepName").textContent = STEP_NAMES[state.step];
-    $("stepIdx").textContent = ix < 4 ? "0" + (ix+1) + "/04"
-      : (currentPlan() && currentPlan().status === "ok" ? "SOLVED" : "NO FIT");
+    $("stepIdx").textContent = ix < 4 ? (ix+1) + " of 4"
+      : (currentPlan() && currentPlan().status === "ok" ? "Solved" : "No fit");
     $("rail").hidden = ix > 3;
     $("rail").innerHTML = "<i class='" + ["","","",""].map(function(_, i){
       return i <= ix ? "on" : ""; }).join("'></i><i class='") + "'></i>";
@@ -734,37 +771,23 @@ body{background:var(--board);color:var(--ink);font-family:var(--sans);
     if (s){ state.store = s.dataset.store; state.ticked = {}; render(); return; }
     var g = e.target.closest("[data-goal]");
     if (g){ state.goal = g.dataset.goal; state.ticked = {}; render(); return; }
-    var d = e.target.closest("[data-days]");
-    if (d){ state.days = +d.dataset.days; state.ticked = {}; render(); return; }
-    var k = e.target.closest("[data-k]");
-    if (k){ punch(k.dataset.k); return; }
     var n = e.target.closest("[data-next]");
     if (n){ state.step = n.dataset.next; state.tab = "meals"; render(); return; }
   });
-
-  function punch(k){
-    if (k === "clear") state.budgetInput = "";
-    else if (k === "del") state.budgetInput = state.budgetInput.slice(0, -1);
-    else if (state.budgetInput.length < 3) {
-      // No leading zeros: "0" then "5" is £5, not £05.
-      state.budgetInput = (state.budgetInput === "0" ? "" : state.budgetInput) + k;
-    }
-    state.ticked = {}; render();
-  }
-
-  // The keypad is a real control, so a real keyboard drives it too.
-  document.addEventListener("keydown", function(e){
-    if (state.step !== "budget" || e.metaKey || e.ctrlKey || e.altKey) return;
-    if (/^[0-9]$/.test(e.key)){ punch(e.key); e.preventDefault(); }
-    else if (e.key === "Backspace"){ punch("del"); e.preventDefault(); }
-  });
-
   $("back").addEventListener("click", function(){
     var ix = STEPS.indexOf(state.step);
     if (ix > 0){ state.step = STEPS[ix-1]; render(); }
   });
   $("restart").addEventListener("click", function(){
     state.step = "store"; state.ticked = {}; render();
+  });
+  $("daysRange").addEventListener("input", function(e){
+    state.days = DAYS[+e.target.value];
+    state.budgetIx = Math.min(state.budgetIx, stops().length - 1);
+    state.ticked = {}; render();
+  });
+  $("budgetRange").addEventListener("input", function(e){
+    state.budgetIx = +e.target.value; state.ticked = {}; render();
   });
   $("tabMeals").addEventListener("click", function(){ state.tab="meals"; render(); });
   $("tabShop").addEventListener("click", function(){ state.tab="shop"; render(); });

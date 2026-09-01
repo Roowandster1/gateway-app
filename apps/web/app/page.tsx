@@ -16,62 +16,62 @@ const FACTS: [string, React.ReactNode][] = [
   [
     "Leftovers",
     <>
-      Rice and oil <b>carry over</b>. Chicken and bread <b>rot</b>. The solver is
-      penalised only for the second.
+      Rice and oil <b>carry over</b>. Chicken and bread <b>rot</b>. The solver
+      is penalised only for the second.
     </>,
   ],
   [
     "No fit",
     <>
-      It returns <b>infeasible</b> and names the binding constraint. That is an answer.
+      It returns <b>infeasible</b> and names the binding constraint. That is an
+      answer.
     </>,
   ],
   [
     "Prices",
     <>
-      Seed estimates with a source and a date, flagged <b>unverified</b>. Nothing is
-      guessed.
+      Seed estimates with a source and a date, flagged <b>unverified</b>.
+      Nothing is guessed.
     </>,
   ],
   [
     "The model",
     <>
-      Writes cooking steps and nothing else. A checker rejects any step stating an
-      amount.
+      Writes cooking steps and nothing else. A checker rejects any step stating
+      an amount.
     </>,
   ],
 ];
 
 export default function Home() {
   return (
-    <>
-      <header className="strip">
-        <div className="in">
-          <h1>Till Total</h1>
-          <p>Meals for what you said you&apos;d spend</p>
-        </div>
+    <main className="wrap">
+      <header className="masthead">
+        <h1>Till Total</h1>
+        <p>Meals for what you said you&apos;d spend.</p>
       </header>
-
-      <main className="wrap">
-        <div className="cols">
-          <Planner />
-          <aside className="side">
-            <section className="card">
-              <h2>Why this is not a chatbot</h2>
-              <div className="body">
-                <ul className="facts">
-                  {FACTS.map(([label, text]) => (
-                    <li key={label}>
-                      <span className="h">{label}</span>
-                      <span>{text}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </section>
-          </aside>
-        </div>
-      </main>
-    </>
+      <div className="cols">
+        <Planner />
+        <aside className="side">
+          {/* Collapsed by default: on a phone this sat under the app as a wall
+                of text with no obvious job. It is proof, not chrome. */}
+          <details className="card">
+            <summary>
+              Why this is not a chatbot<span className="mark">▶</span>
+            </summary>
+            <div className="body">
+              <ul className="facts">
+                {FACTS.map(([label, text]) => (
+                  <li key={label}>
+                    <span className="h">{label}</span>
+                    <span>{text}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </details>
+        </aside>
+      </div>
+    </main>
   );
 }

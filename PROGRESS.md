@@ -1036,3 +1036,55 @@ drift. `DESIGN.md` is rewritten to match what is actually on screen.
 Still open, unchanged: **the receipt test** (SPEC §6, the gate on P2 — 28 seed
 prices, none yet checked against a till), persistence (P4), the NULL
 `carb_per_100`/`fat_per_100` columns, and `docker compose up`.
+
+---
+
+## Session 17 — Correcting the over-correction
+
+Session 16's redesign was wrong in the opposite direction. Roo, on seeing it on
+his phone: *"Is too blocky, weird colours. Weird stuff at the bottom when u
+scroll down. It's missing sliders."* Four complaints, all fair, all fixed:
+
+1. **Too blocky.** Hard 1.5px black borders on everything, reversed-out black
+   bars for every heading, a full-bleed black masthead. Now: light paper, 1px
+   hairlines, 11–14px radii, and light `--paper-2` chips where the black slabs
+   were. Fixing "it looks AI-generated" by making it shout is not fixing it.
+2. **Weird colours.** The saturated price-flash yellow is gone.
+3. **Weird stuff at the bottom.** On a phone the two proof panels stacked under
+   the app as a wall of black-barred text with no obvious job. They are now a
+   single `<details>`, collapsed.
+4. **Missing sliders.** They are back.
+
+**On the sliders specifically — I was wrong and said so.** I removed them
+arguing that a slider's two ends are a claim about what is possible that the
+solver has not made. That reasoning was fine; the conclusion was not. The
+problem was never the control, it was the *range*: the old build started it at
+£25 and implied that was the minimum. The range now runs from half the measured
+floor to two and a half times it, so at Aldi it spans **£10 to £48** and a £10
+budget is reachable — it simply comes back infeasible with the real floor
+attached. The measured floor is drawn as a **pin on the track**, because it is a
+solved number and belongs on the control rather than only in a sentence
+underneath. That answers his original "people get by on much less" complaint
+better than the keypad did.
+
+**The colour is not settled, and I stopped guessing.** Two attempts, two
+rejections. `demo/template.html` now carries a **palette picker** — green, blue,
+orange, violet — that repaints the whole app at a tap and remembers the choice.
+It is a decision aid, not a feature: once he picks one, the picker comes out.
+`apps/web` ships only the default green.
+
+Re-verified after the rework: no horizontal overflow at 320 / 360 / 414px,
+smallest rendered text 10.5px, contrast 6.11:1 on the muted mono roles and
+17.77:1 on headings, no touch target under 24px, dark mode re-stepped, no page
+errors through the whole flow in either the demo or the app. The cost-split
+segments are still the validated set — the surface under them is still white,
+so they hold. `next build`, `eslint` and `tsc` clean.
+
+`DESIGN.md` §1 now records **both** failed passes, because the pair of them is
+the useful lesson: the sage wellness app and the brutalist over-correction are
+two ways of missing the same target. The landing point is between them — quiet
+surface, loud numbers.
+
+Still open, unchanged: **the receipt test** (SPEC §6, the gate on P2),
+persistence (P4), the NULL `carb_per_100`/`fat_per_100` columns, and
+`docker compose up`.

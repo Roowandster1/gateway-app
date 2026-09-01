@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CostSplit } from "@/components/CostSplit";
 import { DAY_STOPS, GOALS, GOAL_ORDER, STORES, type GoalKey } from "@/lib/goals";
 import type { Floor, Plan, SolveResult, SolverError } from "@/lib/solver";
@@ -50,17 +50,29 @@ function qty(q: number, unit: string) {
   return `${Math.round(q)}${unit}`;
 }
 
+/**
+ * 19 budget stops spanning the measured floor: half of it to two and a half
+ * times it, so the floor always sits inside the range and a budget well below
+ * it is reachable. Before the floor lands, days x £4 is a placeholder.
+ */
+function budgetStops(floor: Floor | null, days: number): number[] {
+  const base = floor?.first ?? days * 4;
+  const lo = Math.max(3, Math.round(base * 0.5));
+  const hi = Math.round(base * 2.5);
+  const step = (hi - lo) / 18;
+  return Array.from({ length: 19 }, (_, i) => Math.round((lo + step * i) * 4) / 4);
+}
+
 export function Planner() {
   const [step, setStep] = useState<Step>("store");
   const [store, setStore] = useState("aldi");
   const [days, setDays] = useState(7);
   const [goal, setGoal] = useState<GoalKey>("maintain");
-  // The budget is punched in, not dragged. A slider has to invent a range
-  // before the floor is known, and its ends are a claim about what is possible
-  // that the solver has not made yet. A keypad claims nothing and takes any
-  // number, so "people get by on far less than £25" is simply true here.
-  const [budgetInput, setBudgetInput] = useState("");
-  const budgetTouched = useRef(false);
+  // A slider, with the measured floor pinned on the track. The old build's
+  // range started at £25 and implied that was the minimum; it now runs from
+  // half the floor to two and a half times it, so a small budget is reachable
+  // and simply comes back as infeasible with the real number attached.
+  const [budgetIx, setBudgetIx] = useState(9);
   // `value: null` means the request was made and the solver could not answer.
   // That is a different state from "not asked yet" and the UI must not show
   // the same "working it out…" line for both.
@@ -79,13 +91,14 @@ export function Planner() {
   const floor = floorEntry?.value ?? null;
   const floorUnavailable = floorEntry !== null && floorEntry.value === null;
 
-  const budget = budgetInput === "" ? null : parseInt(budgetInput, 10);
+  const stops = useMemo(() => budgetStops(floor, days), [floor, days]);
+  const budget = stops[Math.min(budgetIx, stops.length - 1)];
 
   const body = useCallback(
     (over: Record<string, unknown> = {}) => ({
       store,
       days,
-      budget: budget ?? 0,
+      budget,
       min_protein_per_day: targets.protein,
       kcal_band: targets.kcal,
       ...over,
@@ -121,11 +134,6 @@ export function Planner() {
         }
         setFloorFor({ key: floorKey, value });
         setError(null);
-        // Seed the keypad with a round number clear of the floor, but only
-        // until the first keypress — after that the figure is theirs.
-        if (!budgetTouched.current && value.first !== null) {
-          setBudgetInput(String(Math.ceil((value.first * 1.25) / 5) * 5));
-        }
       })
       .catch(() => {
         if (!live) return;
@@ -136,35 +144,6 @@ export function Planner() {
       live = false;
     };
   }, [floorKey, store, days, targets]);
-
-  const punch = useCallback((k: string) => {
-    budgetTouched.current = true;
-    setTicked({});
-    setBudgetInput((prev) => {
-      if (k === "clear") return "";
-      if (k === "del") return prev.slice(0, -1);
-      if (prev.length >= 3) return prev;
-      // No leading zeros: "0" then "5" is £5, not £05.
-      return (prev === "0" ? "" : prev) + k;
-    });
-  }, []);
-
-  // The keypad is a real control, so a real keyboard drives it too.
-  useEffect(() => {
-    if (step !== "budget") return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (/^[0-9]$/.test(e.key)) {
-        punch(e.key);
-        e.preventDefault();
-      } else if (e.key === "Backspace") {
-        punch("del");
-        e.preventDefault();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [step, punch]);
 
   async function buildPlan() {
     setBusy(true);
@@ -204,7 +183,7 @@ export function Planner() {
         )}
         <span className="lab">{STEP_NAMES[step]}</span>
         <span className="idx">
-          {ix < 4 ? `0${ix + 1}/04` : plan ? "SOLVED" : "NO FIT"}
+          {ix < 4 ? `${ix + 1} of 4` : plan ? "Solved" : "No fit"}
         </span>
       </div>
       {ix < 4 && (
@@ -241,26 +220,30 @@ export function Planner() {
 
       {step === "days" && (
         <Screen eyebrow="Step two" q="How long for?" cta="Continue" onNext={() => setStep("budget")}>
-          <div className="chips">
-            {DAY_STOPS.map((d) => {
-              const whole = d % 7 === 0;
-              return (
-                <button
-                  key={d}
-                  className="chip"
-                  aria-pressed={days === d}
-                  onClick={() => {
-                    setDays(d);
-                    setTicked({});
-                  }}
-                >
-                  <span className="tik n">{whole ? d / 7 : d}</span>
-                  <span className="u">
-                    {whole ? (d === 7 ? "week" : "weeks") : d === 1 ? "day" : "days"}
-                  </span>
-                </button>
-              );
-            })}
+          <div className="readout">
+            <span className="tik big">
+              {days % 7 === 0
+                ? `${days / 7} ${days === 7 ? "week" : "weeks"}`
+                : `${days} ${days === 1 ? "day" : "days"}`}
+            </span>
+            <span className="rt lab">
+              {plural(days * 3, "meal")}
+              <br />
+              for one
+            </span>
+          </div>
+          <Slider
+            max={DAY_STOPS.length - 1}
+            value={DAY_STOPS.indexOf(days)}
+            label="Plan length"
+            onChange={(i) => {
+              setDays(DAY_STOPS[i]);
+              setTicked({});
+            }}
+          />
+          <div className="scale">
+            <span>1 day</span>
+            <span>2 weeks</span>
           </div>
           <p className="note">
             {days === 14
@@ -277,11 +260,10 @@ export function Planner() {
           eyebrow="Step three"
           q="What's the budget?"
           cta="Continue"
-          disabled={budget === null}
           onNext={() => setStep("goal")}
         >
-          <div className="amount">
-            <span className="tik big">{budget === null ? "£—" : `£${budget}`}</span>
+          <div className="readout">
+            <span className="tik big">{money(budget).replace(/\.00$/, "")}</span>
             <span className="rt lab">
               For one
               <br />
@@ -290,7 +272,26 @@ export function Planner() {
               {days === 1 ? "1 day" : plural(days, "day")}
             </span>
           </div>
-          <Keypad onPunch={punch} />
+          <Slider
+            max={stops.length - 1}
+            value={Math.min(budgetIx, stops.length - 1)}
+            label="Budget"
+            floorPct={
+              floor?.first != null &&
+              floor.first > stops[0] &&
+              floor.first < stops[stops.length - 1]
+                ? (floor.first - stops[0]) / (stops[stops.length - 1] - stops[0])
+                : null
+            }
+            onChange={(i) => {
+              setBudgetIx(i);
+              setTicked({});
+            }}
+          />
+          <div className="scale">
+            <span>{money(stops[0]).replace(/\.00$/, "")}</span>
+            <span>{money(stops[stops.length - 1]).replace(/\.00$/, "")}</span>
+          </div>
           <FloorNote
             floor={floor}
             unavailable={floorUnavailable}
@@ -339,8 +340,8 @@ export function Planner() {
           ticked={ticked}
           setTicked={setTicked}
           onUseFloor={(b) => {
-            budgetTouched.current = true;
-            setBudgetInput(String(Math.ceil(b)));
+            const i = stops.findIndex((s) => s >= b);
+            setBudgetIx(i < 0 ? stops.length - 1 : i);
             setStep("budget");
           }}
           onRestart={() => {
@@ -416,21 +417,48 @@ function Choice({
   );
 }
 
-const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "clear", "0", "del"];
-
-function Keypad({ onPunch }: { onPunch: (k: string) => void }) {
+/**
+ * A range input whose filled portion is painted from the value, plus an
+ * optional pin for a real, solved number on the track — the budget floor is
+ * something the solver measured, so it belongs on the control rather than only
+ * in a sentence underneath.
+ */
+function Slider({
+  max,
+  value,
+  label,
+  onChange,
+  floorPct,
+}: {
+  max: number;
+  value: number;
+  label: string;
+  onChange: (i: number) => void;
+  floorPct?: number | null;
+}) {
+  const pct = max > 0 ? (value / max) * 100 : 0;
   return (
-    <div className="pad">
-      {KEYS.map((k) => (
-        <button
-          key={k}
-          className={k === "clear" || k === "del" ? "key fn" : "key"}
-          onClick={() => onPunch(k)}
-          aria-label={k === "del" ? "Delete last digit" : undefined}
+    <div className="track">
+      <input
+        type="range"
+        min={0}
+        max={max}
+        step={1}
+        value={value}
+        aria-label={label}
+        onChange={(e) => onChange(+e.target.value)}
+        style={{ "--pct": `${pct}%` } as React.CSSProperties}
+      />
+      {floorPct != null && (
+        <span
+          className="floorpin"
+          // The thumb is 28px, so the usable track is inset by half a thumb at
+          // each end; the pin has to sit in that same space to line up.
+          style={{ left: `calc(14px + ${floorPct} * (100% - 28px))` }}
         >
-          {k === "clear" ? "Clear" : k === "del" ? "Del" : k}
-        </button>
-      ))}
+          <b>floor</b>
+        </span>
+      )}
     </div>
   );
 }
@@ -444,7 +472,7 @@ function FloorNote({
 }: {
   floor: Floor | null;
   unavailable?: boolean;
-  budget: number | null;
+  budget: number;
   days: number;
   store: string;
 }) {
@@ -464,7 +492,7 @@ function FloorNote({
       </div>
     );
   }
-  const under = budget !== null && budget < floor.first;
+  const under = budget < floor.first;
   return (
     <div className={under ? "floormark under" : "floormark"}>
       {under ? (
