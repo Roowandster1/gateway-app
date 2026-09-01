@@ -111,21 +111,29 @@ def _catalogue(store):
     return _CACHE[store]
 
 
-def retrying(fn, *args, attempts: int = 3):
+def retrying(fn, *args, attempts: int = 4):
     """
     Run a CBC call, and if the binary itself falls over, run it again.
 
-    Insurance, not a diagnosis. This was written for a crash at combination 44
-    that looked like contention between parallel solves; it was not. CBC was
-    segfaulting on one specific model, deterministically, because of the MPS
-    file PuLP feeds it — see `_CbcViaLp` in app/model.py, which is the actual
-    fix. Retrying a deterministic segfault only made the export take three
-    times as long to fail.
+    There are two different CBC crashes behind this, and it took three failed
+    exports to separate them.
 
-    It stays because a 128-combination export is most of an hour, and losing
-    all of it to one bad subprocess is a poor trade against three attempts.
-    Raises if every attempt fails, so a model that genuinely will not solve
-    still surfaces rather than being swallowed.
+    The first is deterministic: CBC segfaults reading the MPS file PuLP writes
+    for one particular model, and solves the identical model from an LP file in
+    fifteen seconds. `_CbcViaLp` in app/model.py fixes that one, and retrying
+    never could.
+
+    The second is not deterministic and LP does not avoid it. `dmesg` shows
+    fourteen `cbc ... segfault` lines, every one at instruction pointer
+    0x5b60a8, with fault addresses like ffffffff81827920 and fffffffc7d50b920 —
+    a garbage index dereferenced deep in branch-and-bound. Same code path,
+    different runs, different combinations: 44/128 one run, 91/128 the next.
+    That is a bug in this CBC build, not in the model, and not something this
+    repository can fix.
+
+    So retry — a fresh process genuinely does get past it — and when it will
+    not, let the caller drop that combination rather than take the whole export
+    down with it.
     """
     for attempt in range(1, attempts + 1):
         try:
@@ -155,13 +163,21 @@ def one_combo(job):
                 exclude_recipes=excluded)
     combo = f"{store}|{days}|{goal}|{diet_key}"
 
-    first = retrying(cheapest_feasible_budget, items, recipes,
-                     SolveParams(budget=999.0, **base))
-    ongoing = None
-    if first is not None:
-        pantry = stocked_pantry(items, recipes, base)
-        ongoing = retrying(cheapest_feasible_budget, items, recipes,
-                           SolveParams(budget=999.0, pantry=pantry, **base))
+    # The floor runs first, and a CBC crash here used to propagate out of the
+    # worker and end the run — 91 finished combinations thrown away because the
+    # 92nd tripped over a pointer bug. Now the combination is dropped and the
+    # export carries on. An absent combination is honest: the demo already
+    # renders one as outside the exported grid.
+    try:
+        first = retrying(cheapest_feasible_budget, items, recipes,
+                         SolveParams(budget=999.0, **base))
+        ongoing = None
+        if first is not None:
+            pantry = stocked_pantry(items, recipes, base)
+            ongoing = retrying(cheapest_feasible_budget, items, recipes,
+                               SolveParams(budget=999.0, pantry=pantry, **base))
+    except pulp.PulpSolverError:
+        return combo, None, {}, [combo]
 
     plans, missing = {}, []
     structural = None
@@ -233,9 +249,13 @@ def main():
     with multiprocessing.Pool(2, initializer=_init_worker) as pool:
         for n, (combo, floor, plans, missing) in enumerate(
                 pool.imap_unordered(one_combo, jobs), 1):
+            dropped.extend(missing)
+            if floor is None:
+                print(f"[{n:>3}/{len(jobs)}] {combo:<26} dropped — CBC would not "
+                      f"solve it", flush=True)
+                continue
             out["floors"][combo] = floor
             out["plans"].update(plans)
-            dropped.extend(missing)
             first = floor["first"]
             print(f"[{n:>3}/{len(jobs)}] {combo:<26} first "
                   f"{('£%.2f' % first) if first else 'none':>8}   ongoing "
