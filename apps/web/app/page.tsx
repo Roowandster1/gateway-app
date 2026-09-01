@@ -1,54 +1,77 @@
 import { Planner } from "@/components/Planner";
 
+/**
+ * Five short facts, not three paragraphs of prose. Each one is a claim the app
+ * has to keep, so it is written as a spec line with a label — the same register
+ * as the shelf tickets next to it.
+ */
+const FACTS: [string, React.ReactNode][] = [
+  [
+    "Packs",
+    <>
+      70g of lentils costs a whole 99p bag. Cost is counted over{" "}
+      <b>whole packs bought</b>, which is what forces reuse.
+    </>,
+  ],
+  [
+    "Leftovers",
+    <>
+      Rice and oil <b>carry over</b>. Chicken and bread <b>rot</b>. The solver is
+      penalised only for the second.
+    </>,
+  ],
+  [
+    "No fit",
+    <>
+      It returns <b>infeasible</b> and names the binding constraint. That is an answer.
+    </>,
+  ],
+  [
+    "Prices",
+    <>
+      Seed estimates with a source and a date, flagged <b>unverified</b>. Nothing is
+      guessed.
+    </>,
+  ],
+  [
+    "The model",
+    <>
+      Writes cooking steps and nothing else. A checker rejects any step stating an
+      amount.
+    </>,
+  ],
+];
+
 export default function Home() {
   return (
-    <main className="max-w-[1080px] mx-auto px-5 pt-8 pb-16 w-full">
-      <header className="flex flex-wrap items-baseline gap-x-4 gap-y-3 pb-4.5 mb-7 border-b-2 border-ink pb-4">
-        <h1 className="text-[clamp(28px,4.5vw,40px)] font-bold tracking-[-0.025em]">
-          Till Total
-        </h1>
-        <span className="font-mono text-[11px] uppercase tracking-[0.09em] px-2 py-0.5 border border-line rounded text-muted">
-          Working title
-        </span>
-        <p className="text-sm text-muted max-w-[52ch]">
-          Pick a shop, a length, a budget and a goal. Every number comes from the integer
-          solver — nothing here is written by a language model.
-        </p>
+    <>
+      <header className="strip">
+        <div className="in">
+          <h1>Till Total</h1>
+          <p>Meals for what you said you&apos;d spend</p>
+        </div>
       </header>
-      <div className="grid gap-9 items-start lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)]">
-        <Planner />
-        <aside className="flex flex-col gap-5">
-          <section className="bg-surface border border-line rounded-xl p-5">
-            <h2 className="text-[15px] font-bold tracking-tight mb-1">
-              Food is sold in packs, not grams
-            </h2>
-            <p className="text-[13px] text-muted leading-relaxed">
-              A recipe needing 70g of lentils costs you a whole 99p bag. Cost is computed
-              over whole packs bought, which is what forces a plan to reuse an ingredient
-              rather than open a second one. That is an integer program, not a prompt.
-            </p>
-          </section>
-          <section className="bg-surface border border-line rounded-xl p-5">
-            <h2 className="text-[15px] font-bold tracking-tight mb-1">
-              Leftovers split two ways
-            </h2>
-            <p className="text-[13px] text-muted leading-relaxed">
-              Rice and oil carry over and make the next shop cheaper. Chicken and bread rot,
-              and the objective is penalised for creating them. Anything that outlives the
-              plan counts as an asset, not waste.
-            </p>
-          </section>
-          <section className="bg-surface border border-line rounded-xl p-5">
-            <h2 className="text-[15px] font-bold tracking-tight mb-1">
-              When nothing fits, it says so
-            </h2>
-            <p className="text-[13px] text-muted leading-relaxed">
-              An infeasible answer names the binding constraint and prices the cheapest week
-              that would work. That is a real answer, not an error.
-            </p>
-          </section>
-        </aside>
-      </div>
-    </main>
+
+      <main className="wrap">
+        <div className="cols">
+          <Planner />
+          <aside className="side">
+            <section className="card">
+              <h2>Why this is not a chatbot</h2>
+              <div className="body">
+                <ul className="facts">
+                  {FACTS.map(([label, text]) => (
+                    <li key={label}>
+                      <span className="h">{label}</span>
+                      <span>{text}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </main>
+    </>
   );
 }

@@ -971,3 +971,68 @@ Still open, unchanged: **the receipt test** (SPEC §6, the gate on P2 — 28 see
 prices, none yet checked against a till, `RECEIPTS.md` still empty), persistence
 (P4), the NULL `carb_per_100`/`fat_per_100` columns, and `docker compose up`,
 which has never been verified because the image registry CDN is blocked here.
+
+---
+
+## Session 16 — The interface, rebuilt
+
+Roo's verdict on the old UI: *"I don't like the sliders, text, entire page to be
+honest it's bad colours and poor design. It screams ai."* He was right, and it is
+worth writing down exactly what was doing it, because none of it was subtle:
+
+- **A sage-green wellness palette.** Soft off-white ground, grey-green surfaces,
+  one amber accent. That specific combination is the default look of
+  machine-generated pages.
+- **26px radii and a blurred drop shadow** under a floating card.
+- **Essayistic sub-copy under every heading** — two-line explanations of what the
+  screen was for, em-dashes throughout, three "here's why this is clever" cards
+  down the side.
+- **Two generic HTML range sliders**, which he had already objected to twice.
+
+The worst of it: `DESIGN.md` §1 has said "a shelf-edge ticket, not a food
+magazine" since it was written. The file described one product and the pixels
+rendered a different one. The redesign is not a new direction — it is finally
+building the one already written down.
+
+**What it is now.** Paper white on card grey, near-black ink, hairline rules,
+square corners, no shadow anywhere, and one saturated price-flash yellow that
+only ever means *this one is selected*. Archivo loaded as a variable font with
+its **width axis**, so every price is set condensed and heavy the way a shelf
+ticket is printed; IBM Plex Mono keeps the receipt data. Aisle headings and slot
+headings are reversed-out black bars. Copy is cut to signage length.
+
+**The sliders are gone, and not for taste.** A slider has to invent a range
+before the floor is known, and its two ends are a claim about what is possible
+that the solver has not made. That is precisely how the old build came to tell
+people the minimum was £25 when Aldi's measured floor is £19.38 — and Roo's
+third complaint, *"people get by on much less"*, was a complaint about a control
+lying. Length is now six discrete chips. Budget is a **keypad**: you punch in a
+number the way you would at a till, it accepts anything, and the floor note —
+which comes from a real solve — does the arguing. £12 is now a thing you can
+type; it turns the note red and tells you the cheapest first shop is £19.38.
+
+**Verified rather than assumed:**
+- The Google Fonts stylesheet **did not load** on the first render, so the
+  condensed numerals were silently falling back to a normal-width system face
+  and the whole type idea was inert. Caught by measuring the rendered width of
+  the masthead (151px fallback vs 116.6px real). Both faces are now self-hosted:
+  inlined woff2 data URIs in the demo, `next/font` with `axes: ["wdth"]` in the
+  app.
+- Smallest rendered text had slipped to **9.5px**. Raised to a 10.5px floor
+  across every mono label and 11px on the chip units.
+- Contrast measured in the DOM: 7.54:1 on the muted mono roles, 19.8:1 on
+  headings, 13.1:1 on the masthead sub. No target under 24px. No horizontal
+  overflow at 320 / 360 / 414px.
+- Dark mode re-stepped and shot at phone width, not inverted.
+- The cost-split segments are **unchanged** — the surface they sit on is still
+  white — so the validated palette still holds and was not re-eyeballed.
+
+`apps/web/app/globals.css` is now generated from `demo/template.html`'s style
+block, so the shipped app and the demo carry literally the same rules and cannot
+drift. `DESIGN.md` is rewritten to match what is actually on screen.
+
+`next build`, `eslint` and `tsc` clean.
+
+Still open, unchanged: **the receipt test** (SPEC §6, the gate on P2 — 28 seed
+prices, none yet checked against a till), persistence (P4), the NULL
+`carb_per_100`/`fat_per_100` columns, and `docker compose up`.

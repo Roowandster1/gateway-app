@@ -31,19 +31,20 @@ export function CostSplit({
   const cupboardShare = Math.round((plan.carry_over_value / total) * 100);
 
   return (
-    <section className="mb-5">
-      <div className="flex items-baseline gap-2.5 mb-3">
-        <span
-          data-testid="spend"
-          className="font-mono text-[31px] font-semibold tracking-tight leading-none tabular-nums"
-        >
+    <section className="split">
+      <div className="hero">
+        <span data-testid="spend" className="tik n">
           {money(plan.spend)}
         </span>
-        <span className="text-xs text-muted">at the till, for {period}</span>
+        <span className="l">
+          At the till
+          <br />
+          for {period}
+        </span>
       </div>
 
       <div
-        className="flex items-stretch h-[15px] gap-0.5 rounded"
+        className="costbar"
         role="img"
         aria-label={`Of ${money(plan.spend)} spent, ${parts
           .map((p) => `${money(p.v)} ${p.key.toLowerCase()}`)
@@ -54,34 +55,25 @@ export function CostSplit({
             key={p.seg}
             title={`${p.key} ${money(p.v)}`}
             style={{ flex: `${p.v / total} 1 0`, background: `var(--seg-${p.seg})` }}
-            className="block h-full min-w-[3px] rounded-sm"
           />
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
+      <div className="key-list">
         {parts.map((p) => (
-          <div key={p.seg} className="flex items-center gap-2 text-xs text-muted">
-            <i
-              aria-hidden
-              style={{ background: `var(--seg-${p.seg})` }}
-              className="w-2.5 h-2.5 rounded-sm shrink-0"
-            />
-            {p.key}{" "}
-            <b className="font-mono text-[12.5px] font-semibold text-ink tabular-nums">
-              {money(p.v)}
-            </b>
-            <span className="font-mono text-[10.5px]">
-              {Math.round((p.v / total) * 100)}%
-            </span>
+          <div key={p.seg}>
+            <i aria-hidden style={{ background: `var(--seg-${p.seg})` }} />
+            <span className="nm">{p.key}</span>
+            <b>{money(p.v)}</b>
+            <span className="pc">{Math.round((p.v / total) * 100)}%</span>
           </div>
         ))}
       </div>
 
-      <p className="text-[11.5px] text-muted mt-3 leading-relaxed">
+      <p className="caption">
         {cupboardShare >= 40
-          ? `Most of this shop is stock you keep. Rice, oil and tins do not run out with the ${periodNoun}, so the next shop buys far less.`
-          : `Cupboard stock carries into the next ${periodNoun} and makes it cheaper. Only the perishable leftover is really wasted.`}
+          ? "Most of this shop is stock you keep. The next one buys far less."
+          : `Cupboard stock carries into the next ${periodNoun}. Only the perishable leftover is really wasted.`}
       </p>
     </section>
   );

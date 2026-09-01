@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CostSplit } from "@/components/CostSplit";
 import { DAY_STOPS, GOALS, GOAL_ORDER, STORES, type GoalKey } from "@/lib/goals";
 import type { Floor, Plan, SolveResult, SolverError } from "@/lib/solver";
@@ -8,14 +8,22 @@ import type { Floor, Plan, SolveResult, SolverError } from "@/lib/solver";
 const STEPS = ["store", "days", "budget", "goal", "plan"] as const;
 type Step = (typeof STEPS)[number];
 
+const STEP_NAMES: Record<Step, string> = {
+  store: "Where you shop",
+  days: "How long for",
+  budget: "The budget",
+  goal: "What you're eating for",
+  plan: "Your plan",
+};
+
 const money = (n: number) => `£${n.toFixed(2)}`;
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
 /** The message the route handler sent, or a fallback if it sent nothing usable. */
 const detailOf = (v: unknown) =>
-  (typeof v === "object" && v !== null && typeof (v as SolverError).detail === "string"
+  typeof v === "object" && v !== null && typeof (v as SolverError).detail === "string"
     ? (v as SolverError).detail
-    : "Could not reach the solver.");
+    : "Could not reach the solver.";
 
 /** For "at the till, for {periodWord}". */
 function periodWord(days: number) {
@@ -42,28 +50,23 @@ function qty(q: number, unit: string) {
   return `${Math.round(q)}${unit}`;
 }
 
-/** 19 budget stops spanning the measured floor, so the floor is always reachable. */
-function budgetStops(floor: Floor | null, days: number): number[] {
-  const base = floor?.first ?? days * 4;
-  const lo = Math.max(3, Math.round(base * 0.5));
-  const hi = Math.round(base * 2.5);
-  const step = (hi - lo) / 18;
-  return Array.from({ length: 19 }, (_, i) => Math.round((lo + step * i) * 4) / 4);
-}
-
 export function Planner() {
   const [step, setStep] = useState<Step>("store");
   const [store, setStore] = useState("aldi");
   const [days, setDays] = useState(7);
   const [goal, setGoal] = useState<GoalKey>("maintain");
-  const [budgetIx, setBudgetIx] = useState(9);
-  // The floor is stored with the request it belongs to, so switching store,
-  // length or goal makes the previous answer stale by derivation rather than by
-  // clearing state inside an effect (which cascades renders).
+  // The budget is punched in, not dragged. A slider has to invent a range
+  // before the floor is known, and its ends are a claim about what is possible
+  // that the solver has not made yet. A keypad claims nothing and takes any
+  // number, so "people get by on far less than £25" is simply true here.
+  const [budgetInput, setBudgetInput] = useState("");
+  const budgetTouched = useRef(false);
   // `value: null` means the request was made and the solver could not answer.
   // That is a different state from "not asked yet" and the UI must not show
   // the same "working it out…" line for both.
-  const [floorFor, setFloorFor] = useState<{ key: string; value: Floor | null } | null>(null);
+  const [floorFor, setFloorFor] = useState<{ key: string; value: Floor | null } | null>(
+    null,
+  );
   const [result, setResult] = useState<SolveResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,14 +79,13 @@ export function Planner() {
   const floor = floorEntry?.value ?? null;
   const floorUnavailable = floorEntry !== null && floorEntry.value === null;
 
-  const stops = useMemo(() => budgetStops(floor, days), [floor, days]);
-  const budget = stops[Math.min(budgetIx, stops.length - 1)];
+  const budget = budgetInput === "" ? null : parseInt(budgetInput, 10);
 
   const body = useCallback(
     (over: Record<string, unknown> = {}) => ({
       store,
       days,
-      budget,
+      budget: budget ?? 0,
       min_protein_per_day: targets.protein,
       kcal_band: targets.kcal,
       ...over,
@@ -91,7 +93,7 @@ export function Planner() {
     [store, days, budget, targets],
   );
 
-  // The floor is fetched before a budget is chosen, so the slider can show what
+  // The floor is fetched before a budget is chosen, so the screen can say what
   // is actually possible instead of letting someone pick an impossible number.
   useEffect(() => {
     let live = true;
@@ -119,6 +121,11 @@ export function Planner() {
         }
         setFloorFor({ key: floorKey, value });
         setError(null);
+        // Seed the keypad with a round number clear of the floor, but only
+        // until the first keypress — after that the figure is theirs.
+        if (!budgetTouched.current && value.first !== null) {
+          setBudgetInput(String(Math.ceil((value.first * 1.25) / 5) * 5));
+        }
       })
       .catch(() => {
         if (!live) return;
@@ -129,6 +136,35 @@ export function Planner() {
       live = false;
     };
   }, [floorKey, store, days, targets]);
+
+  const punch = useCallback((k: string) => {
+    budgetTouched.current = true;
+    setTicked({});
+    setBudgetInput((prev) => {
+      if (k === "clear") return "";
+      if (k === "del") return prev.slice(0, -1);
+      if (prev.length >= 3) return prev;
+      // No leading zeros: "0" then "5" is £5, not £05.
+      return (prev === "0" ? "" : prev) + k;
+    });
+  }, []);
+
+  // The keypad is a real control, so a real keyboard drives it too.
+  useEffect(() => {
+    if (step !== "budget") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (/^[0-9]$/.test(e.key)) {
+        punch(e.key);
+        e.preventDefault();
+      } else if (e.key === "Backspace") {
+        punch("del");
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [step, punch]);
 
   async function buildPlan() {
     setBusy(true);
@@ -156,127 +192,124 @@ export function Planner() {
 
   const ix = STEPS.indexOf(step);
   const plan = result?.status === "ok" ? (result as Plan) : null;
+  const storeName = STORES.find((s) => s.slug === store)?.name ?? store;
 
   return (
-    <div className="bg-surface border border-line rounded-[26px] overflow-hidden flex flex-col min-h-[720px] shadow-[0_18px_44px_-18px_rgb(20_26_24/0.14)]">
-      <header className="flex items-center gap-2.5 px-4 py-3.5 border-b border-line bg-surface-2 min-h-[52px]">
+    <div className="phone">
+      <div className="topbar">
         {ix > 0 && (
-          <button
-            onClick={() => setStep(STEPS[ix - 1])}
-            aria-label="Go back"
-            className="text-lg leading-none px-1.5 py-1 rounded opacity-75 hover:opacity-100 hover:bg-surface-3"
-          >
+          <button className="back" onClick={() => setStep(STEPS[ix - 1])} aria-label="Go back">
             ←
           </button>
         )}
-        <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted">
-          {ix < 4 ? `Step ${ix + 1} of 4` : plan ? "Your plan" : "No plan"}
+        <span className="lab">{STEP_NAMES[step]}</span>
+        <span className="idx">
+          {ix < 4 ? `0${ix + 1}/04` : plan ? "SOLVED" : "NO FIT"}
         </span>
-        <div className="flex gap-1.5 ml-auto">
-          {STEPS.slice(0, 4).map((s, i) => (
-            <span
-              key={s}
-              className={`w-1.5 h-1.5 rounded-full ${
-                i === ix ? "bg-ink" : i < ix ? "bg-muted" : "bg-line"
-              }`}
-            />
+      </div>
+      {ix < 4 && (
+        <div className="rail">
+          {[0, 1, 2, 3].map((i) => (
+            <i key={i} className={i <= ix ? "on" : undefined} />
           ))}
         </div>
-      </header>
+      )}
 
-      <div className="px-5 pt-6 pb-6 flex-1 flex flex-col">
-        {step === "store" && (
-          <Screen
-            q="Where do you shop?"
-            sub="Prices differ enough between the two to change what a week can contain."
-            cta="Continue"
-            onNext={() => setStep("days")}
-          >
+      {step === "store" && (
+        <Screen eyebrow="Step one" q="Where do you shop?" cta="Continue" onNext={() => setStep("days")}>
+          <div className="choices">
             {STORES.map((s) => (
               <Choice
                 key={s.slug}
                 selected={store === s.slug}
                 onClick={() => setStore(s.slug)}
                 name={s.name}
-                detail="UK · 28 items priced"
-                aside={floor?.first && store === s.slug ? `from ${money(floor.first)}` : undefined}
+                detail="28 items priced"
+                aside={
+                  floor?.first && store === s.slug ? (
+                    <>
+                      from {money(floor.first)}
+                      <br />a {periodNoun(days)}
+                    </>
+                  ) : undefined
+                }
               />
             ))}
-          </Screen>
-        )}
+          </div>
+        </Screen>
+      )}
 
-        {step === "days" && (
-          <Screen
-            q="How far ahead?"
-            sub="Anything from a single day to a fortnight. Short plans still buy whole packs, so most of a one-day shop stays in your cupboard."
-            cta="Continue"
-            onNext={() => setStep("budget")}
-          >
-            <Readout
-              value={days % 7 === 0 ? `${days / 7}` : `${days}`}
-              unit={days % 7 === 0 ? (days === 7 ? "week" : "weeks") : days === 1 ? "day" : "days"}
-              note={
-                days === 14
-                  ? `${plural(days * 3, "meal")}. Planned as two shops a week apart, so nothing fresh has to survive a fortnight.`
-                  : days <= 2
-                    ? `${plural(days * 3, "meal")}. Short plans still buy whole packs, so most of this shop is stock you keep.`
-                    : `${plural(days * 3, "meal")}. One shop.`
-              }
-            />
-            <input
-              type="range"
-              min={0}
-              max={DAY_STOPS.length - 1}
-              value={DAY_STOPS.indexOf(days)}
-              aria-label="Plan length"
-              onChange={(e) => setDays(DAY_STOPS[+e.target.value])}
-              className="w-full my-3"
-            />
-            <Scale lo="1 day" hi="2 weeks" />
-          </Screen>
-        )}
+      {step === "days" && (
+        <Screen eyebrow="Step two" q="How long for?" cta="Continue" onNext={() => setStep("budget")}>
+          <div className="chips">
+            {DAY_STOPS.map((d) => {
+              const whole = d % 7 === 0;
+              return (
+                <button
+                  key={d}
+                  className="chip"
+                  aria-pressed={days === d}
+                  onClick={() => {
+                    setDays(d);
+                    setTicked({});
+                  }}
+                >
+                  <span className="tik n">{whole ? d / 7 : d}</span>
+                  <span className="u">
+                    {whole ? (d === 7 ? "week" : "weeks") : d === 1 ? "day" : "days"}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="note">
+            {days === 14
+              ? `${plural(days * 3, "meal")}. Two shops, a week apart, so nothing fresh has to last a fortnight.`
+              : days <= 2
+                ? `${plural(days * 3, "meal")}. Packs are whole, so most of a short shop is stock you keep.`
+                : `${plural(days * 3, "meal")}. One shop.`}
+          </p>
+        </Screen>
+      )}
 
-        {step === "budget" && (
-          <Screen
-            q="What's the budget?"
-            sub="The floor is real: below it, no combination of packs meets the nutrition targets at this shop."
-            cta="Continue"
-            onNext={() => setStep("goal")}
-          >
-            <Readout
-              value={money(budget)}
-              note={`For one person across ${days === 1 ? "one day" : plural(days, "day")} at ${
-                STORES.find((s) => s.slug === store)?.name
-              }.`}
-            />
-            <input
-              type="range"
-              min={0}
-              max={stops.length - 1}
-              value={Math.min(budgetIx, stops.length - 1)}
-              aria-label="Budget"
-              onChange={(e) => setBudgetIx(+e.target.value)}
-              className="w-full my-3"
-            />
-            <Scale lo={money(stops[0])} hi={money(stops[stops.length - 1])} />
-            <FloorNote
-              floor={floor}
-              unavailable={floorUnavailable}
-              budget={budget}
-              days={days}
-              store={store}
-            />
-          </Screen>
-        )}
+      {step === "budget" && (
+        <Screen
+          eyebrow="Step three"
+          q="What's the budget?"
+          cta="Continue"
+          disabled={budget === null}
+          onNext={() => setStep("goal")}
+        >
+          <div className="amount">
+            <span className="tik big">{budget === null ? "£—" : `£${budget}`}</span>
+            <span className="rt lab">
+              For one
+              <br />
+              at {storeName}
+              <br />
+              {days === 1 ? "1 day" : plural(days, "day")}
+            </span>
+          </div>
+          <Keypad onPunch={punch} />
+          <FloorNote
+            floor={floor}
+            unavailable={floorUnavailable}
+            budget={budget}
+            days={days}
+            store={storeName}
+          />
+        </Screen>
+      )}
 
-        {step === "goal" && (
-          <Screen
-            q="What are you eating for?"
-            sub="These set the calorie band and the protein floor. They are constraints, not suggestions — the solver refuses rather than under-feed you."
-            cta={busy ? "Solving…" : "Build the plan"}
-            onNext={buildPlan}
-            disabled={busy}
-          >
+      {step === "goal" && (
+        <Screen
+          eyebrow="Step four"
+          q="What are you eating for?"
+          cta={busy ? "Solving…" : "Build the plan"}
+          disabled={busy}
+          onNext={buildPlan}
+        >
+          <div className="choices">
             {GOAL_ORDER.map((g) => (
               <Choice
                 key={g}
@@ -284,38 +317,44 @@ export function Planner() {
                 onClick={() => setGoal(g)}
                 name={GOALS[g].label}
                 detail={`${GOALS[g].kcal[0]}–${GOALS[g].kcal[1]} kcal a day`}
-                aside={`${GOALS[g].protein}g protein`}
+                aside={
+                  <>
+                    {GOALS[g].protein}g protein
+                    <br />
+                    minimum
+                  </>
+                }
               />
             ))}
-          </Screen>
-        )}
+          </div>
+        </Screen>
+      )}
 
-        {step === "plan" && (
-          <PlanScreen
-            result={result}
-            days={days}
-            tab={tab}
-            setTab={setTab}
-            ticked={ticked}
-            setTicked={setTicked}
-            onUseFloor={(b) => {
-              const i = stops.findIndex((s) => s >= b);
-              setBudgetIx(i < 0 ? stops.length - 1 : i);
-              setStep("budget");
-            }}
-            onRestart={() => {
-              setResult(null);
-              setStep("store");
-            }}
-          />
-        )}
+      {step === "plan" && (
+        <PlanScreen
+          result={result}
+          days={days}
+          tab={tab}
+          setTab={setTab}
+          ticked={ticked}
+          setTicked={setTicked}
+          onUseFloor={(b) => {
+            budgetTouched.current = true;
+            setBudgetInput(String(Math.ceil(b)));
+            setStep("budget");
+          }}
+          onRestart={() => {
+            setResult(null);
+            setStep("store");
+          }}
+        />
+      )}
 
-        {error && (
-          <p className="mt-4 text-xs text-bad bg-bad-bg border border-bad/30 rounded-lg px-3 py-2">
-            {error} Is the solver running on port 8000?
-          </p>
-        )}
-      </div>
+      {error && (
+        <p className="screen-error">
+          {error} Is the solver running on port 8000?
+        </p>
+      )}
     </div>
   );
 }
@@ -323,86 +362,33 @@ export function Planner() {
 /* ---------- pieces ---------- */
 
 function Screen({
+  eyebrow,
   q,
-  sub,
   cta,
   onNext,
   disabled,
   children,
 }: {
+  eyebrow: string;
   q: string;
-  sub: string;
   cta: string;
   onNext: () => void;
   disabled?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <>
-      <h2 className="text-[23px] font-semibold tracking-tight mb-1.5 text-balance">{q}</h2>
-      <p className="text-[13.5px] text-muted mb-5">{sub}</p>
-      <div className="flex flex-col gap-2.5">{children}</div>
-      <div className="mt-auto pt-5">
-        <button
-          onClick={onNext}
-          disabled={disabled}
-          className="w-full text-[15.5px] font-semibold py-3.5 rounded-[10px] bg-ink text-ground hover:opacity-90 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent"
-        >
+    <section className="screen">
+      <h2 className="q">
+        <span className="sm">{eyebrow}</span>
+        {q}
+      </h2>
+      {children}
+      <div className="cta">
+        <button className="btn" onClick={onNext} disabled={disabled}>
           {cta}
         </button>
       </div>
-    </>
-  );
-}
-
-/**
- * The meal and shopping lists are taller than the card, so they scroll inside
- * it. Left plain, the 430px boundary slices a row flat and reads as the end of
- * the list — you cannot tell there is more. The bottom edge fades only while
- * there actually is, so the last row is never faded for nothing.
- *
- * Measured on scroll and on mount rather than in an effect: the effect version
- * of this sets state on every render pass and React flags it.
- */
-function Scroller({ label, children }: { label: string; children: React.ReactNode }) {
-  const [more, setMore] = useState(false);
-  const el = useRef<HTMLDivElement | null>(null);
-
-  const measure = useCallback((node: HTMLDivElement | null) => {
-    if (!node) return;
-    const v = node.scrollTop + node.clientHeight < node.scrollHeight - 2;
-    setMore((prev) => (prev === v ? prev : v));
-  }, []);
-
-  const attach = useCallback(
-    (node: HTMLDivElement | null) => {
-      el.current = node;
-      measure(node);
-    },
-    [measure],
-  );
-
-  return (
-    <div
-      ref={attach}
-      onScroll={(e) => measure(e.currentTarget)}
-      // A scrollable region is reachable by keyboard, so it needs a name and a
-      // tab stop of its own (WCAG 2.1.1).
-      tabIndex={0}
-      role="group"
-      aria-label={label}
-      className="flex-1 overflow-y-auto max-h-[430px] focus-visible:outline-2 focus-visible:outline-accent"
-      style={
-        more
-          ? {
-              maskImage: "linear-gradient(to bottom, #000 calc(100% - 26px), transparent)",
-              WebkitMaskImage: "linear-gradient(to bottom, #000 calc(100% - 26px), transparent)",
-            }
-          : undefined
-      }
-    >
-      {children}
-    </div>
+    </section>
   );
 }
 
@@ -417,48 +403,34 @@ function Choice({
   onClick: () => void;
   name: string;
   detail: string;
-  aside?: string;
+  aside?: React.ReactNode;
 }) {
   return (
-    <button
-      onClick={onClick}
-      aria-pressed={selected}
-      className={`text-left w-full flex items-center gap-3.5 px-4 py-4 rounded-xl border transition-colors focus-visible:outline-2 focus-visible:outline-accent ${
-        selected
-          ? "border-ink bg-surface-2 shadow-[inset_3px_0_0_var(--accent)]"
-          : "border-line bg-surface hover:border-muted hover:bg-surface-2"
-      }`}
-    >
+    <button className="choice" onClick={onClick} aria-pressed={selected}>
       <span>
-        <span className="block text-[17px] font-semibold tracking-tight">{name}</span>
-        <span className="block text-[12.5px] text-muted mt-0.5">{detail}</span>
+        <span className="nm">{name}</span>
+        <span className="dt">{detail}</span>
       </span>
-      {aside && (
-        <span className="ml-auto font-mono text-[12.5px] text-muted text-right whitespace-nowrap">
-          {aside}
-        </span>
-      )}
+      {aside && <span className="num">{aside}</span>}
     </button>
   );
 }
 
-function Readout({ value, unit, note }: { value: string; unit?: string; note?: string }) {
-  return (
-    <>
-      <div className="font-mono text-[42px] font-semibold tracking-tight leading-none tabular-nums mt-2 mb-1">
-        {value}
-        {unit && <span className="text-xl text-muted font-normal"> {unit}</span>}
-      </div>
-      {note && <p className="text-[13px] text-muted min-h-[38px] mb-2">{note}</p>}
-    </>
-  );
-}
+const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "clear", "0", "del"];
 
-function Scale({ lo, hi }: { lo: string; hi: string }) {
+function Keypad({ onPunch }: { onPunch: (k: string) => void }) {
   return (
-    <div className="flex justify-between font-mono text-[11px] text-muted">
-      <span>{lo}</span>
-      <span>{hi}</span>
+    <div className="pad">
+      {KEYS.map((k) => (
+        <button
+          key={k}
+          className={k === "clear" || k === "del" ? "key fn" : "key"}
+          onClick={() => onPunch(k)}
+          aria-label={k === "del" ? "Delete last digit" : undefined}
+        >
+          {k === "clear" ? "Clear" : k === "del" ? "Del" : k}
+        </button>
+      ))}
     </div>
   );
 }
@@ -472,63 +444,88 @@ function FloorNote({
 }: {
   floor: Floor | null;
   unavailable?: boolean;
-  budget: number;
+  budget: number | null;
   days: number;
   store: string;
 }) {
-  const name = STORES.find((s) => s.slug === store)?.name ?? store;
   if (unavailable) {
     return (
-      <p className="mt-4 px-3 py-2.5 rounded-lg text-[12.5px] bg-bad-bg border-l-[3px] border-bad text-bad">
+      <div className="floormark under">
         The floor could not be worked out — the solver is not answering. Any number you
         pick here is a guess until it does.
-      </p>
+      </div>
     );
   }
-  if (!floor) {
-    return <p className="mt-4 text-[12.5px] text-muted">Working out the floor…</p>;
-  }
+  if (!floor) return <div className="floormark">Working out the floor…</div>;
   if (floor.first === null) {
     return (
-      <p className="mt-4 px-3 py-2.5 rounded-lg text-[12.5px] bg-bad-bg border-l-[3px] border-bad text-bad">
-        No budget works for these targets here. The targets themselves have to move.
-      </p>
+      <div className="floormark under">
+        No budget works for these targets here. The targets have to move.
+      </div>
     );
   }
-  const under = budget < floor.first;
+  const under = budget !== null && budget < floor.first;
   return (
-    <>
-      <p
-        className={`mt-4 px-3 py-2.5 rounded-lg text-[12.5px] border-l-[3px] ${
-          under ? "bg-bad-bg border-bad text-bad" : "bg-surface-2 border-muted text-muted"
-        }`}
-      >
-        {under ? (
-          <>
-            Not possible at {name} from an empty cupboard. The cheapest first shop is{" "}
-            <b className="font-mono">{money(floor.first)}</b>.
-          </>
-        ) : (
-          <>
-            Cheapest first shop here: <b className="font-mono">{money(floor.first)}</b>
-            {floor.ongoing !== null && (
-              <>
-                , then about <b className="font-mono">{money(floor.ongoing)}</b> a{" "}
-                {periodNoun(days)}
-              </>
-            )}
-            .
-          </>
-        )}
-      </p>
-      {floor.ongoing !== null && (
-        <p className="text-[11.5px] text-muted mt-3 leading-relaxed">
-          {under
-            ? `Once your cupboard is stocked the same ${periodNoun(days)} costs about ${money(floor.ongoing)}, so this budget works from your second shop on.`
-            : "The first shop is dearer because it stocks the cupboard. Rice, oil and tins carry over, so later shops buy far less."}
-        </p>
+    <div className={under ? "floormark under" : "floormark"}>
+      {under ? (
+        <>
+          Too low at {store} from an empty cupboard. Cheapest first shop is{" "}
+          <b>{money(floor.first)}</b>.
+          {floor.ongoing !== null && (
+            <>
+              {" "}
+              Once stocked, about <b>{money(floor.ongoing)}</b> a {periodNoun(days)}.
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          Cheapest first shop <b>{money(floor.first)}</b>
+          {floor.ongoing !== null ? (
+            <>
+              , then about <b>{money(floor.ongoing)}</b> a {periodNoun(days)}. The first is
+              dearer because it stocks the cupboard.
+            </>
+          ) : (
+            "."
+          )}
+        </>
       )}
-    </>
+    </div>
+  );
+}
+
+/**
+ * The meal and shopping lists are taller than the ticket, so they scroll inside
+ * it. Left plain, the cap slices a row flat and reads as the end of the list —
+ * you cannot tell there is more. The bottom edge fades only while there
+ * actually is, so the last row is never faded for nothing.
+ *
+ * Measured on scroll and on mount rather than in an effect: the effect version
+ * of this sets state on every render pass and React flags it.
+ */
+function Scroller({ label, children }: { label: string; children: React.ReactNode }) {
+  const [more, setMore] = useState(false);
+
+  const measure = useCallback((node: HTMLDivElement | null) => {
+    if (!node) return;
+    const v = node.scrollTop + node.clientHeight < node.scrollHeight - 2;
+    setMore((prev) => (prev === v ? prev : v));
+  }, []);
+
+  return (
+    <div
+      ref={measure}
+      onScroll={(e) => measure(e.currentTarget)}
+      // A scrollable region is reachable by keyboard, so it needs a name and a
+      // tab stop of its own (WCAG 2.1.1).
+      tabIndex={0}
+      role="group"
+      aria-label={label}
+      className={more ? "pane more" : "pane"}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -555,47 +552,37 @@ function PlanScreen({
 
   if (result.status === "infeasible") {
     return (
-      <>
-        <div className="border border-bad bg-bad-bg rounded-xl p-4.5 mb-4 px-4 py-4">
-          <h3 className="text-[16.5px] text-bad font-semibold mb-2">
+      <section className="screen">
+        <div className="stop">
+          <h3>
             {result.min_feasible_budget !== null
               ? "That budget doesn't exist here"
               : "This one can't be done"}
           </h3>
-          <p className="text-[13.5px] leading-relaxed mb-3">{result.suggestion}</p>
-          <p className="flex flex-wrap gap-1">
+          <p>{result.suggestion}</p>
+          <p>
             {[result.binding, ...result.also_binding].map((b) => (
-              <span
-                key={b}
-                className="font-mono text-[11px] bg-surface border border-line rounded px-1.5 py-0.5"
-              >
+              <span key={b} className="blocker">
                 {b}
               </span>
             ))}
           </p>
         </div>
         {result.min_feasible_budget !== null && (
-          <button
-            onClick={() => onUseFloor(result.min_feasible_budget!)}
-            className="w-full text-[15.5px] font-semibold py-3.5 rounded-[10px] bg-ink text-ground hover:opacity-90"
-          >
+          <button className="btn" onClick={() => onUseFloor(result.min_feasible_budget!)}>
             Use {money(result.min_feasible_budget)} instead
           </button>
         )}
-        <p className="text-[11.5px] text-muted mt-4 pt-3 border-t border-line leading-relaxed">
-          This is the answer, not a failure. The solver proved no set of whole packs meets
-          the targets, so it names what blocked it rather than quietly serving you a worse
-          week.
+        <p className="note">
+          This is the answer, not a failure. No set of whole packs meets the targets, so it
+          names what blocked it rather than serving you a worse week.
         </p>
-        <div className="mt-auto pt-5">
-          <button
-            onClick={onRestart}
-            className="w-full text-[15.5px] font-semibold py-3.5 rounded-[10px] border border-line hover:bg-surface-2"
-          >
+        <div className="cta">
+          <button className="btn ghost" onClick={onRestart}>
             Start again
           </button>
         </div>
-      </>
+      </section>
     );
   }
 
@@ -608,36 +595,35 @@ function PlanScreen({
   const seen = new Set<string>();
 
   const byAisle = new Map<string, typeof plan.basket>();
-  for (const line of plan.basket.filter((b) => b.packs > 0)) {
-    if (!byAisle.has(line.aisle)) byAisle.set(line.aisle, []);
-    byAisle.get(line.aisle)!.push(line);
-  }
+  plan.basket
+    .filter((b) => b.packs > 0)
+    .forEach((b) => byAisle.set(b.aisle, [...(byAisle.get(b.aisle) ?? []), b]));
+
   const picked = plan.basket
     .filter((b) => b.packs > 0 && ticked[b.item])
     .reduce((a, b) => a + b.line_cost, 0);
 
   return (
-    <>
-      <CostSplit
-        plan={plan}
-        period={periodWord(days)}
-        periodNoun={periodNoun(days)}
-      />
+    <section className="screen">
+      <CostSplit plan={plan} period={periodWord(days)} periodNoun={periodNoun(days)} />
 
-      <div className="flex gap-1 bg-surface-2 p-1 rounded-[9px] mb-4">
-        {(["food", "shop"] as const).map((t) => (
-          <button
-            key={t}
-            role="tab"
-            aria-selected={tab === t}
-            onClick={() => setTab(t)}
-            className={`flex-1 text-[13px] font-semibold py-2 rounded-[7px] ${
-              tab === t ? "bg-surface text-ink shadow-sm" : "text-muted"
-            }`}
-          >
-            {t === "food" ? "The food" : "Shopping list"}
-          </button>
-        ))}
+      <div className="tabs" role="tablist">
+        <button
+          className="tab"
+          role="tab"
+          aria-selected={tab === "food"}
+          onClick={() => setTab("food")}
+        >
+          The food
+        </button>
+        <button
+          className="tab"
+          role="tab"
+          aria-selected={tab === "shop"}
+          onClick={() => setTab("shop")}
+        >
+          Shopping list
+        </button>
       </div>
 
       {tab === "food" ? (
@@ -650,8 +636,8 @@ function PlanScreen({
                 .filter((o) => o.slot === m.slot)
                 .reduce((a, o) => a + o.servings, 0);
               head = (
-                <div className="flex justify-between items-baseline font-mono text-[10px] uppercase tracking-[0.09em] text-muted pt-4 pb-1.5">
-                  {titles[m.slot]}
+                <div className="slot-head">
+                  <span>{titles[m.slot]}</span>
                   <span>{plural(n, "serving")}</span>
                 </div>
               );
@@ -659,34 +645,31 @@ function PlanScreen({
             return (
               <div key={m.recipe}>
                 {head}
-                <div className="flex gap-3 items-center py-2.5 border-b border-line last:border-0">
-                  {m.image_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={m.image_url}
-                      alt=""
-                      loading="lazy"
-                      className="w-14 h-14 rounded-lg object-cover bg-surface-2 shrink-0"
-                    />
-                  ) : (
-                    <span className="w-14 h-14 rounded-lg bg-surface-2 shrink-0" />
-                  )}
-                  <span className="font-mono text-[13px] font-semibold bg-accent text-accent-ink rounded px-1.5 py-0.5 shrink-0 self-start">
-                    {m.servings}×
-                  </span>
-                  <span className="flex-1 text-sm font-medium tracking-tight">{m.name}</span>
-                  <span className="font-mono text-[11px] text-muted text-right whitespace-nowrap tabular-nums">
-                    {Math.round(m.protein_per_serving)}g · {Math.round(m.kcal_per_serving)} kcal
-                    <br />
-                    {m.minutes} min
-                  </span>
+                <div className="meal">
+                  <div className="row">
+                    {m.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img className="shot" src={m.image_url} alt="" loading="lazy" />
+                    ) : (
+                      <span className="shot" />
+                    )}
+                    <span className="mult">{m.servings}×</span>
+                    <span className="nm">{m.name}</span>
+                    <span className="mac">
+                      {Math.round(m.protein_per_serving)}g ·{" "}
+                      {Math.round(m.kcal_per_serving)} kcal
+                      <br />
+                      {m.minutes} min
+                    </span>
+                  </div>
                 </div>
               </div>
             );
           })}
-          <p className="text-[11.5px] text-muted mt-3.5 pt-3 border-t border-line leading-relaxed">
-            {plan.protein_per_day.toFixed(0)}g protein and {plan.kcal_per_day.toFixed(0)} kcal
-            a day, averaged over {days === 1 ? "the day" : plural(days, "day")}.
+          <p className="note">
+            <b>{plan.protein_per_day.toFixed(0)}g</b> protein and{" "}
+            <b>{plan.kcal_per_day.toFixed(0)}</b> kcal a day, averaged over{" "}
+            {days === 1 ? "the day" : plural(days, "day")}. Cooked in batches.
           </p>
         </Scroller>
       ) : (
@@ -695,17 +678,13 @@ function PlanScreen({
             .sort(([a], [b]) => a.localeCompare(b))
             .map(([aisle, lines]) => (
               <div key={aisle}>
-                <div className="font-mono text-[10px] uppercase tracking-[0.09em] text-muted pt-3.5 pb-1.5 border-b border-line sticky top-0 bg-surface">
-                  {aisle}
-                </div>
+                <div className="aisle">{aisle}</div>
                 {[...lines]
                   .sort((a, b) => b.line_cost - a.line_cost)
                   .map((b) => (
                     <label
                       key={b.item}
-                      className={`flex gap-2.5 items-baseline py-2.5 border-b border-line cursor-pointer ${
-                        ticked[b.item] ? "opacity-45" : ""
-                      }`}
+                      className={ticked[b.item] ? "line ticked" : "line"}
                     >
                       <input
                         type="checkbox"
@@ -713,57 +692,46 @@ function PlanScreen({
                         onChange={(e) =>
                           setTicked({ ...ticked, [b.item]: e.target.checked })
                         }
-                        className="w-[15px] h-[15px] shrink-0 relative top-0.5 accent-[var(--good)]"
                       />
-                      <span className={`flex-1 ${ticked[b.item] ? "line-through" : ""}`}>
-                        <span className="text-[13.5px] tracking-tight">{b.name}</span>
+                      <span className="lbl">
+                        {b.name}
                         {b.qty_carry_over > 0 && (
-                          <span className="inline-block font-mono text-[9.5px] px-1.5 py-px rounded-sm ml-1.5 bg-good-bg text-good no-underline">
-                            {qty(b.qty_carry_over, b.unit)} carries over
+                          <span className="pill carry">
+                            {qty(b.qty_carry_over, b.unit)} carries
                           </span>
                         )}
                         {b.qty_wasted > 0 && (
-                          <span
-                            className="inline-block font-mono text-[9.5px] px-1.5 py-px rounded-sm ml-1.5 no-underline"
-                            style={{ background: "var(--warn-bg)", color: "var(--warn)" }}
-                          >
+                          <span className="pill waste">
                             {qty(b.qty_wasted, b.unit)} wasted
                           </span>
                         )}
-                        <span className="block font-mono text-[11px] text-muted mt-px no-underline">
+                        <span className="qty">
                           {b.packs} × {qty(b.pack_size, b.unit)} @ {money(b.unit_price)}
                         </span>
                       </span>
-                      <span className="font-mono text-[13px] font-semibold tabular-nums whitespace-nowrap">
-                        {money(b.line_cost)}
-                      </span>
+                      <span className="amt">{money(b.line_cost)}</span>
                     </label>
                   ))}
               </div>
             ))}
-          <div className="flex justify-between items-baseline mt-4 pt-3.5 border-t-2 border-ink font-mono font-semibold">
-            <span className="text-[11px] uppercase tracking-[0.07em] font-medium text-muted">
-              In the trolley
-            </span>
-            <span className="text-[21px] tabular-nums tracking-tight">
+          <div className="tally">
+            <span className="l">In the trolley</span>
+            <span className="tik n">
               {money(picked)} / {money(plan.spend)}
             </span>
           </div>
-          <p className="text-[11.5px] text-muted mt-3.5 pt-3 border-t border-line leading-relaxed">
-            Prices are seed estimates, <b>unverified</b>. Correcting one in the aisle writes
-            a new price and re-solves.
+          <p className="note">
+            Prices are seed estimates, <b>unverified</b>. Correcting one in the aisle
+            writes a new price and re-solves.
           </p>
         </Scroller>
       )}
 
-      <div className="mt-auto pt-5">
-        <button
-          onClick={onRestart}
-          className="w-full text-[15.5px] font-semibold py-3.5 rounded-[10px] border border-line hover:bg-surface-2"
-        >
+      <div className="cta">
+        <button className="btn ghost" onClick={onRestart}>
           Start again
         </button>
       </div>
-    </>
+    </section>
   );
 }
